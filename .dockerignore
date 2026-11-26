@@ -1,0 +1,7 @@
+node_modules
+backend/vendor
+backend/node_modules
+.git
+.env
+backend/.env
+backend/storage/logs

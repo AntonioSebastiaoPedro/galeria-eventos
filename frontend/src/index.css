@@ -1,0 +1,58 @@
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/fraunces";
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Schibsted Grotesk Variable", system-ui, sans-serif;
+  --font-display: "Fraunces Variable", Georgia, serif;
+
+  /* Papel quente de álbum, tinta escura, e as cores da festa: coral e dourado. */
+  --color-canvas: #f5efe6;
+  --color-paper: #fffdf9;
+  --color-ink: #1f1a16;
+  --color-ink-2: #4a423b;
+  --color-ink-3: #847970;
+  --color-line: #e4dacc;
+  --color-wash: #efe6da;
+  --color-coral: #d9472b;
+  --color-coral-soft: #fbe3dc;
+  --color-gold: #e9b949;
+  --color-gold-ink: #3d2c00;
+  --color-leaf: #2f6b4f;
+  --color-leaf-soft: #dcebdf;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbe6e3;
+  /* Galeria dos convidados: fundo escuro, para as fotografias sobressaírem. */
+  --color-night: #15110e;
+  --color-night-2: #241d18;
+  --color-cream: #f5efe6;
+
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-fade: fade 0.25s ease-out both;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@layer base {
+  html { font-family: var(--font-sans); background: var(--color-canvas); color: var(--color-ink); }
+  body { min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+  :focus-visible { outline: 3px solid var(--color-coral); outline-offset: 2px; border-radius: 6px; }
+  ::selection { background: var(--color-gold); color: var(--color-gold-ink); }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

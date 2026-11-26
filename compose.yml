@@ -1,0 +1,36 @@
+x-app: &app
+  build: { context: ., dockerfile: docker/php/Dockerfile, target: app }
+  env_file: .env
+  depends_on: [postgres, redis]
+
+services:
+  app:
+    <<: *app
+    volumes: [storage:/var/www/html/storage/app]
+  queue:
+    <<: *app
+    command: php artisan queue:work --tries=3 --timeout=1800 # o ZIP de um evento grande pode demorar
+    volumes: [storage:/var/www/html/storage/app] # partilhado com o app: as miniaturas e os ZIP são gerados aqui
+  scheduler:
+    <<: *app
+    command: php artisan schedule:work
+    volumes: [storage:/var/www/html/storage/app]
+  reverb:
+    <<: *app
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+  nginx:
+    image: nginx:stable-alpine
+    depends_on: [app, reverb]
+  postgres:
+    image: postgres:${POSTGRES_VERSION}-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+  redis:
+    image: redis:7-alpine
+
+volumes: { pgdata: {}, storage: {} }

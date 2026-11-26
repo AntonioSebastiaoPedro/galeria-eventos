@@ -1,0 +1,12 @@
+# Bloco a acrescentar ao /etc/caddy/Caddyfile da VPS (pode ser a mesma de outros projectos: cada um usa a sua porta).
+# O Caddy obtém o certificado sozinho. A porta é o HTTP_PORT do .env; o nginx do contentor
+# já encaminha /app (WebSocket do Reverb) e /api, por isso não é preciso subdomínio "ws".
+#
+#   sudo systemctl reload caddy
+galeria.shopall.ao {
+	encode gzip zstd
+	request_body {
+		max_size 320MB
+	}
+	reverse_proxy localhost:29680
+}
