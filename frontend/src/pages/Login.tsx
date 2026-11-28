@@ -7,7 +7,7 @@ import AuthLayout from './AuthLayout'
 export default function Login() {
   const { login } = useAuth()
   const nav = useNavigate()
-  const [email, setEmail] = useState('')
+  const [login_, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
@@ -17,9 +17,9 @@ export default function Login() {
       <form onSubmit={async (e) => {
         e.preventDefault()
         setBusy(true); setError(null)
-        try { await login(email.trim(), password); nav('/eventos') } catch (err) { setError(err) } finally { setBusy(false) }
+        try { await login(login_.trim(), password); nav('/eventos') } catch (err) { setError(err) } finally { setBusy(false) }
       }}>
-        <Field label="E-mail" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <Field label="Telemóvel ou e-mail" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="923 456 789" value={login_} onChange={(e) => setLogin(e.target.value)} required />
         <Field label="Senha" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <ErrorText error={error} />
         <Button className="mt-2 w-full" disabled={busy}>{busy ? 'A entrar…' : 'Entrar'}</Button>

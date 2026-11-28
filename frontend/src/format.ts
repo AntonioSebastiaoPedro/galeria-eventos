@@ -38,3 +38,21 @@ export const fmtDuration = (s: number | null) => {
 export const fmtKz = (n: number) => (n === 0 ? 'Grátis' : `${n.toLocaleString('pt-PT')} Kz`)
 
 export const plural = (n: number, one: string, many: string) => `${n.toLocaleString('pt-PT')} ${n === 1 ? one : many}`
+
+// Telemóveis: "+244923456789" mostra-se "+244 923 456 789"; um número angolano sem indicativo, "923 456 789".
+export const fmtPhone = (p: string | null | undefined) => {
+  if (!p) return ''
+  const d = p.replace(/[^\d+]/g, '')
+  const m = /^(\+244)?(9\d{2})(\d{3})(\d{3})$/.exec(d)
+  return m ? [m[1], m[2], m[3], m[4]].filter(Boolean).join(' ') : p
+}
+
+// Conversa de WhatsApp com um número (sem número: escolher o contacto na aplicação).
+export const whatsappLink = (phone: string | null | undefined, text: string) => {
+  let d = (phone ?? '').replace(/\D/g, '')
+  if (/^9\d{8}$/.test(d)) d = '244' + d
+  return `https://wa.me/${d}?text=${encodeURIComponent(text)}`
+}
+
+// "+244923456789" → "923 456 789" para editar (o +244 já aparece no campo de telemóvel).
+export const phoneForInput = (p: string | null) => (p ? p.replace(/^\+244/, '').replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3') : '')

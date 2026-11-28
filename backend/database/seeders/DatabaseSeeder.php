@@ -19,7 +19,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         User::updateOrCreate(['email' => 'admin@galeria.local'], ['name' => 'Administração', 'password' => 'password', 'role' => 'superadmin']);
-        $organizer = User::updateOrCreate(['email' => 'organizador@galeria.local'], ['name' => 'Dicla Manuel', 'password' => 'password', 'role' => 'organizer']);
+        // O organizador entra com o e-mail ou com o telemóvel 923 000 001.
+        $organizer = User::updateOrCreate(['email' => 'organizador@galeria.local'], ['name' => 'Dicla Manuel', 'phone' => '+244923000001', 'password' => 'password', 'role' => 'organizer']);
 
         if ($organizer->events()->exists()) {
             return;

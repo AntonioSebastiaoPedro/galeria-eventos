@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Download, Share2, Trash2, X } from 'lucide-react'
 import { fmtRelative } from '../../format'
-import { toast } from '../../toast'
 import type { GalleryMedia } from '../../types'
 
 interface Props {
@@ -12,12 +11,12 @@ interface Props {
   onClose: () => void
   onNeedMore?: () => void
   onDelete?: (m: GalleryMedia) => void
-  shareUrl: string
-  title: string
+  // Partilhar esta fotografia ou vídeo (abre o painel com WhatsApp, Instagram e Facebook).
+  onShare: (m: GalleryMedia) => void
 }
 
 // Visualização em ecrã inteiro: setas, teclado e deslizar o dedo. Os vídeos tocam aqui.
-export default function Lightbox({ items, index, onIndex, onClose, onNeedMore, onDelete, shareUrl, title }: Props) {
+export default function Lightbox({ items, index, onIndex, onClose, onNeedMore, onDelete, onShare }: Props) {
   const m = items[index]
   const touch = useRef<number | null>(null)
   const [loaded, setLoaded] = useState<string | null>(null)
@@ -40,13 +39,6 @@ export default function Lightbox({ items, index, onIndex, onClose, onNeedMore, o
   useEffect(() => { if (index >= items.length - 3) onNeedMore?.() }, [index, items.length, onNeedMore])
 
   if (!m) return null
-
-  const share = async () => {
-    try {
-      if (navigator.share) await navigator.share({ title, url: shareUrl })
-      else { await navigator.clipboard.writeText(shareUrl); toast('Link da galeria copiado.') }
-    } catch { /* partilha cancelada */ }
-  }
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex animate-fade flex-col bg-black text-white" role="dialog" aria-modal="true" aria-label="Visualizador"
@@ -83,7 +75,7 @@ export default function Lightbox({ items, index, onIndex, onClose, onNeedMore, o
           </div>
           <div className="flex gap-2">
             {m.download_url && <a href={m.download_url} download className="inline-flex h-11 items-center gap-2 rounded-xl bg-white/10 px-4 font-semibold hover:bg-white/20"><Download size={18} aria-hidden="true" />Descarregar</a>}
-            <button onClick={share} className="inline-flex h-11 items-center gap-2 rounded-xl bg-white/10 px-4 font-semibold hover:bg-white/20"><Share2 size={18} aria-hidden="true" /><span className="hidden sm:inline">Partilhar</span></button>
+            <button onClick={() => onShare(m)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-white/10 px-4 font-semibold hover:bg-white/20"><Share2 size={18} aria-hidden="true" /><span className="hidden sm:inline">Partilhar</span></button>
             {m.can_delete && onDelete && (
               <button onClick={() => onDelete(m)} aria-label="Apagar" className="inline-flex size-11 items-center justify-center rounded-xl bg-white/10 text-coral hover:bg-white/20"><Trash2 size={18} /></button>
             )}

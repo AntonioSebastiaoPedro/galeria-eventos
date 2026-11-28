@@ -59,7 +59,7 @@ export function Layout() {
   return (
     <div className="min-h-dvh">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[4.5rem] flex-col border-r border-line bg-paper md:flex lg:w-64">
-        <Link to="/eventos" className="flex h-16 items-center justify-center lg:justify-start lg:px-6"><Logo /><span className="ml-2 hidden font-display text-xl font-semibold lg:inline">Galeria</span></Link>
+        <Link to="/" aria-label="Galeria, página inicial" className="flex h-16 items-center justify-center lg:justify-start lg:px-6"><Logo /><span className="ml-2 hidden font-display text-xl font-semibold lg:inline">Galeria</span></Link>
         <nav className="flex flex-1 flex-col gap-1 px-3 pt-2" aria-label="Principal">
           {items.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} title={label}
@@ -82,7 +82,7 @@ export function Layout() {
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-paper/95 px-4 backdrop-blur md:hidden">
         {back ? (
           <Link to={back.to} className="-ml-2 flex h-11 items-center gap-1.5 rounded-xl pr-3 pl-2 font-semibold active:bg-wash"><ArrowLeft size={20} aria-hidden="true" />{back.label}</Link>
-        ) : <Brand />}
+        ) : <Link to="/" aria-label="Galeria, página inicial" className="-ml-1 rounded-xl p-1"><Brand /></Link>}
         <button onClick={out} aria-label="Terminar sessão" className="flex size-11 items-center justify-center rounded-full text-ink-2 active:bg-wash"><LogOut size={20} /></button>
       </header>
 
@@ -187,6 +187,21 @@ export function Field({ label, hint, error, type, ...rest }: InputHTMLAttributes
             {shown ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
           </button>
         )}
+      </span>
+    </FieldShell>
+  )
+}
+
+// Telemóvel: o indicativo de Angola (+244) aparece fixo à esquerda. Um número começado por "+" ou "00"
+// (outro país) esconde-o. O servidor guarda sempre o formato internacional.
+export function PhoneField({ label, hint, error, value, onChange, required }: { label: string; hint?: ReactNode; error?: string; value: string; onChange: (v: string) => void; required?: boolean }) {
+  const foreign = /^\s*(\+|00)/.test(value)
+  return (
+    <FieldShell label={label} hint={hint} error={error}>
+      <span className="relative block">
+        {!foreign && <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-ink-3" aria-hidden="true">+244</span>}
+        <input type="tel" inputMode="tel" autoComplete="tel-national" placeholder="923 456 789" value={value} onChange={(e) => onChange(e.target.value)} required={required}
+          aria-invalid={!!error} className={`h-12 md:h-11 ${inputClass} ${foreign ? '' : 'pl-16!'}`} />
       </span>
     </FieldShell>
   )

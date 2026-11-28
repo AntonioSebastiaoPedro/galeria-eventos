@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { ApiError } from '../api'
-import { Button, ErrorText, Field } from '../components'
+import { Button, ErrorText, Field, PhoneField, Segmented } from '../components'
 import AuthLayout from './AuthLayout'
 
+// Conta com telemóvel (o mais comum) ou com e-mail. Pode acrescentar o outro depois, em Conta.
 export default function Register() {
   const { register } = useAuth()
   const nav = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '', password_confirmation: '' })
+  const [by, setBy] = useState<'phone' | 'email'>('phone')
+  const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', password_confirmation: '' })
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
@@ -19,10 +21,16 @@ export default function Register() {
       <form onSubmit={async (e) => {
         e.preventDefault()
         setBusy(true); setError(null)
-        try { await register({ ...form, email: form.email.trim() }); nav('/eventos/novo') } catch (err) { setError(err) } finally { setBusy(false) }
+        const contact = by === 'phone' ? { phone: form.phone.trim() } : { email: form.email.trim() }
+        try { await register({ name: form.name, ...contact, password: form.password, password_confirmation: form.password_confirmation }); nav('/eventos/novo') } catch (err) { setError(err) } finally { setBusy(false) }
       }}>
         <Field label="Nome" autoComplete="name" value={form.name} onChange={set('name')} error={fieldError('name')} required />
-        <Field label="E-mail" type="email" autoComplete="email" value={form.email} onChange={set('email')} error={fieldError('email')} required />
+        <div className="mb-3"><Segmented full value={by} onChange={(v) => { setBy(v); setError(null) }} options={[{ value: 'phone', label: 'Telemóvel' }, { value: 'email', label: 'E-mail' }]} /></div>
+        {by === 'phone' ? (
+          <PhoneField label="Número de telemóvel" hint="É com ele que entra na conta." value={form.phone} onChange={(phone) => setForm({ ...form, phone })} error={fieldError('phone')} required />
+        ) : (
+          <Field label="E-mail" type="email" autoComplete="email" value={form.email} onChange={set('email')} error={fieldError('email')} required />
+        )}
         <Field label="Senha" type="password" autoComplete="new-password" hint="Pelo menos 8 caracteres." value={form.password} onChange={set('password')} error={fieldError('password')} required minLength={8} />
         <Field label="Repetir a senha" type="password" autoComplete="new-password" value={form.password_confirmation} onChange={set('password_confirmation')} required />
         {!(error instanceof ApiError && error.errors) && <ErrorText error={error} />}

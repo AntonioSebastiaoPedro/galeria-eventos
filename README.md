@@ -29,7 +29,7 @@ Requisitos: Docker com Compose e `make`.
 make setup
 ```
 
-Abrir http://localhost:25373 e entrar com `organizador@galeria.local` / `password` (ou criar uma conta). A galeria de demonstração está em "Os seus eventos" → "Abrir galeria".
+Abrir http://localhost:25373 e entrar com o telemóvel `923 000 001` (ou `organizador@galeria.local`) e a senha `password`, ou criar uma conta. A galeria de demonstração está em "Os seus eventos" → evento → "Ver galeria".
 
 As portas são diferentes das do `unia-presence` (interface 25373, API 29680, PostgreSQL 25639…) — ver [docs/comandos-make.md](docs/comandos-make.md#portas-desenvolvimento).
 
@@ -41,6 +41,6 @@ make deploy  # na VPS
 
 ## MVP
 
-Incluído: contas de organizadores, criar e editar eventos, galerias públicas ou privadas (chave no link/QR e código de acesso), link e QR Code exclusivos (com cartão para imprimir), envio de fotografias e vídeos sem conta, visualização em grelha e em ecrã inteiro, moderação (automática ou manual, apagar, bloquear convidados), estatísticas, descarregar individualmente e em ZIP, limites de armazenamento por plano, e área de administração.
+Incluído: contas de organizadores com telemóvel ou e-mail, criar e editar eventos, galerias públicas ou privadas (chave no link/QR e código de acesso), link e QR Code exclusivos (com cartão para imprimir), envio de fotografias e vídeos sem conta, visualização em grelha e em ecrã inteiro, moderação (automática ou manual, apagar, bloquear convidados), estatísticas, descarregar individualmente e em ZIP, seleccionar e partilhar no WhatsApp, Instagram e Facebook, limites de armazenamento por plano, mudança de plano com pagamento por Multicaixa Express (comprovativo confirmado pela administração) e área de administração.
 
-Fica para depois: mensagens dos convidados, mural em tempo real, convites digitais, álbuns automáticos, categorias, IA e pagamentos online. Ver [docs/funcionalidades.md](docs/funcionalidades.md#7-o-que-fica-para-depois-do-mvp).
+Fica para depois: mensagens dos convidados, mural em tempo real, convites digitais, álbuns automáticos, categorias, IA, pagamentos confirmados automaticamente e SMS. Ver [docs/funcionalidades.md](docs/funcionalidades.md#7-o-que-fica-para-depois-do-mvp).

@@ -90,41 +90,58 @@ export function saveBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-// PDF mínimo (A4, uma página) com o cartão como JPEG: dispensa uma biblioteca só para isto.
-function pdfWithJpeg(jpeg: Uint8Array, px: { w: number; h: number }): Blob {
-  const pageW = 595
-  const pageH = 842
-  const h = pageH - 80
-  const w = (h * px.w) / px.h
-  const x = (pageW - w) / 2
-  const y = 40
-  const content = `q ${w.toFixed(2)} 0 0 ${h} ${x.toFixed(2)} ${y} cm /Im0 Do Q`
+const A4 = { w: 595, h: 842 } // pontos PDF
 
+// PDF mínimo em A4, uma imagem JPEG por página: dispensa uma biblioteca só para isto.
+// `fit` encaixa a imagem na página com margem; `full` ocupa a página inteira (folhas já desenhadas à escala A4).
+function pdfWithJpegs(pages: { jpeg: Uint8Array; w: number; h: number }[], mode: 'fit' | 'full'): Blob {
   const enc = new TextEncoder()
   const parts: Uint8Array[] = []
   const offsets: number[] = []
   let length = 0
   const push = (p: Uint8Array | string) => { const b = typeof p === 'string' ? enc.encode(p) : p; parts.push(b); length += b.length }
-  const obj = (n: number, body: string | Uint8Array[]) => {
+  const obj = (n: number, body: (string | Uint8Array)[]) => {
     offsets[n] = length
     push(`${n} 0 obj\n`)
-    if (typeof body === 'string') push(body)
-    else body.forEach(push)
+    body.forEach(push)
     push('\nendobj\n')
   }
 
+  // Objectos: 1 catálogo, 2 páginas, e para cada página i: página, imagem e conteúdo.
+  const pageObj = (i: number) => 3 + i * 3
   push('%PDF-1.4\n')
-  obj(1, '<< /Type /Catalog /Pages 2 0 R >>')
-  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>')
-  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`)
-  obj(4, [`<< /Type /XObject /Subtype /Image /Width ${px.w} /Height ${px.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`, jpeg, '\nendstream'].map((p) => (typeof p === 'string' ? enc.encode(p) : p)))
-  obj(5, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`)
+  obj(1, ['<< /Type /Catalog /Pages 2 0 R >>'])
+  obj(2, [`<< /Type /Pages /Kids [${pages.map((_, i) => `${pageObj(i)} 0 R`).join(' ')}] /Count ${pages.length} >>`])
+  pages.forEach((pg, i) => {
+    const n = pageObj(i)
+    let { w, h } = A4
+    let x = 0
+    let y = 0
+    if (mode === 'fit') {
+      h = A4.h - 80
+      w = (h * pg.w) / pg.h
+      x = (A4.w - w) / 2
+      y = 40
+    }
+    const content = `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /Im0 Do Q`
+    obj(n, [`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4.w} ${A4.h}] /Resources << /XObject << /Im0 ${n + 1} 0 R >> >> /Contents ${n + 2} 0 R >>`])
+    obj(n + 1, [`<< /Type /XObject /Subtype /Image /Width ${pg.w} /Height ${pg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.jpeg.length} >>\nstream\n`, pg.jpeg, '\nendstream'])
+    obj(n + 2, [`<< /Length ${content.length} >>\nstream\n${content}\nendstream`])
+  })
 
+  const total = 3 + pages.length * 3
   const xref = length
-  push(`xref\n0 6\n0000000000 65535 f \n${[1, 2, 3, 4, 5].map((n) => `${String(offsets[n]).padStart(10, '0')} 00000 n \n`).join('')}`)
-  push(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`)
+  push(`xref\n0 ${total}\n0000000000 65535 f \n`)
+  for (let n = 1; n < total; n++) push(`${String(offsets[n]).padStart(10, '0')} 00000 n \n`)
+  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`)
   return new Blob(parts as BlobPart[], { type: 'application/pdf' })
 }
+
+const jpegOf = async (canvas: HTMLCanvasElement) => ({
+  jpeg: new Uint8Array(await (await toBlob(canvas, 'image/jpeg', 0.92)).arrayBuffer()),
+  w: canvas.width,
+  h: canvas.height,
+})
 
 const fileBase = (card: Card) => `qr-${card.title.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-|-$/g, '') || 'galeria'}`
 
@@ -133,7 +150,51 @@ export async function downloadCardPng(card: Card) {
 }
 
 export async function downloadCardPdf(card: Card) {
-  const canvas = await draw(card)
-  const jpeg = new Uint8Array(await (await toBlob(canvas, 'image/jpeg', 0.95)).arrayBuffer())
-  saveBlob(pdfWithJpeg(jpeg, { w: canvas.width, h: canvas.height }), `${fileBase(card)}.pdf`)
+  saveBlob(pdfWithJpegs([await jpegOf(await draw(card))], 'fit'), `${fileBase(card)}.pdf`)
+}
+
+// Folhas A4 com 9 cartões (3 × 3) para imprimir, cortar e pôr nas mesas.
+// Cada cartão fica com cerca de 6,3 × 9 cm; o QR, com uns 4 cm, lê-se bem a um braço de distância.
+export const PER_SHEET = 9
+export const MAX_CARDS = 180
+
+export async function downloadSheetsPdf(card: Card, count: number) {
+  const total = Math.min(MAX_CARDS, Math.max(1, Math.floor(count)))
+  const single = await draw(card)
+  const pageW = 1654 // A4 a 200 ppp
+  const pageH = 2339
+  const margin = 79 // 1 cm: as impressoras não imprimem até à borda
+  const cellW = (pageW - margin * 2) / 3
+  const cellH = (cellW * H) / W
+  const top = (pageH - cellH * 3) / 2
+
+  const pages = []
+  for (let first = 0; first < total; first += PER_SHEET) {
+    const onPage = Math.min(PER_SHEET, total - first)
+    const canvas = document.createElement('canvas')
+    canvas.width = pageW
+    canvas.height = pageH
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, pageW, pageH)
+    ctx.imageSmoothingQuality = 'high'
+    for (let i = 0; i < onPage; i++) {
+      ctx.drawImage(single, margin + (i % 3) * cellW, top + Math.floor(i / 3) * cellH, cellW, cellH)
+    }
+    // Linhas de corte tracejadas à volta dos cartões desta folha.
+    const rows = Math.ceil(onPage / 3)
+    ctx.strokeStyle = '#9a9088'
+    ctx.lineWidth = 2
+    ctx.setLineDash([14, 10])
+    for (let i = 0; i < onPage; i++) {
+      ctx.strokeRect(margin + (i % 3) * cellW, top + Math.floor(i / 3) * cellH, cellW, cellH)
+    }
+    ctx.setLineDash([])
+    ctx.fillStyle = '#9a9088'
+    ctx.font = '400 22px "Schibsted Grotesk Variable", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(`✂  Corte pelas linhas tracejadas · folha ${first / PER_SHEET + 1} de ${Math.ceil(total / PER_SHEET)}`, pageW / 2, top + rows * cellH + 44)
+    pages.push(await jpegOf(canvas))
+  }
+  saveBlob(pdfWithJpegs(pages, 'full'), `${fileBase(card)}-${total}-cartoes.pdf`)
 }

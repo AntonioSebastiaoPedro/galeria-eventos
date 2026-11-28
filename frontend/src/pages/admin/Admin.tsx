@@ -1,22 +1,27 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Copy, KeyRound, MessageCircle, Search } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
-import { Button, Card, PageHeader, Segmented, Spinner } from '../../components'
-import { fmtLongDate, fmtSize } from '../../format'
+import { Button, Card, Modal, PageHeader, Segmented, Spinner } from '../../components'
+import { fmtLongDate, fmtPhone, fmtSize, whatsappLink } from '../../format'
 import { usePaged } from '../../pagination'
 import { toast } from '../../toast'
 import type { ManagedEvent, Plan } from '../../types'
 import { useDebounced } from '../../useDebounced'
+import PlanRequests from './PlanRequests'
 
-interface Overview { organizers: number; events: number; active_events: number; events_by_plan: Record<string, number>; media: number; videos: number; storage_used: number }
-interface AdminUser { id: number; name: string; email: string; role: string; events_count: number; created_at: string; disabled: boolean }
+interface Overview { organizers: number; events: number; active_events: number; events_by_plan: Record<string, number>; media: number; videos: number; storage_used: number; pending_plan_requests: number }
+interface AdminUser { id: number; name: string; email: string | null; phone: string | null; role: string; events_count: number; created_at: string; disabled: boolean }
 
-// Administração da plataforma: visão geral, planos dos eventos (depois de confirmado o pagamento) e contas.
+type Tab = 'eventos' | 'pedidos' | 'contas'
+
+// Administração da plataforma: visão geral, eventos (e o plano de cada um), pedidos de mudança de plano e contas.
 export default function Admin() {
-  const [tab, setTab] = useState<'events' | 'users'>('events')
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = (['eventos', 'pedidos', 'contas'] as const).find((t) => t === params.get('separador')) ?? 'eventos'
+  const setTab = (t: Tab) => setParams({ separador: t }, { replace: true })
   const overview = useQuery({ queryKey: ['admin-overview'], queryFn: () => api<Overview>('/admin/overview') })
   const o = overview.data
 
@@ -30,8 +35,12 @@ export default function Admin() {
           ))}
         </dl>
       )}
-      <div className="mb-5"><Segmented value={tab} onChange={setTab} options={[{ value: 'events', label: 'Eventos' }, { value: 'users', label: 'Contas' }]} /></div>
-      {tab === 'events' ? <EventsTable /> : <UsersTable />}
+      <div className="mb-5"><Segmented full value={tab} onChange={setTab} options={[
+        { value: 'eventos', label: 'Eventos' },
+        { value: 'pedidos', label: 'Pedidos', count: o?.pending_plan_requests || undefined },
+        { value: 'contas', label: 'Contas' },
+      ]} /></div>
+      {tab === 'eventos' ? <EventsTable /> : tab === 'pedidos' ? <PlanRequests /> : <UsersTable />}
     </>
   )
 }
@@ -66,7 +75,7 @@ function EventsTable() {
             <li key={e.id} className="rounded-2xl border border-line bg-paper p-4">
               <Link to={`/eventos/${e.id}`} className="block break-words font-semibold">{e.title}</Link>
               <p className="text-sm text-ink-3">{fmtLongDate(e.event_date)}{e.status === 'disabled' && ' · desactivado'}</p>
-              <p className="mt-2 truncate text-sm">{e.owner?.name} <span className="text-ink-3">· {e.owner?.email}</span></p>
+              <p className="mt-2 truncate text-sm">{e.owner?.name} <span className="text-ink-3">· {e.owner?.email ?? fmtPhone(e.owner?.phone)}</span></p>
               <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <p className="min-w-0 text-sm tabular-nums text-ink-2">{e.counts.photos + e.counts.videos} conteúdos{e.counts.pending > 0 && ` (+${e.counts.pending})`}<br />{fmtSize(e.counts.storage_used)} de {fmtSize(e.counts.storage_limit)}</p>
                 <PlanSelect event={e} plans={plans} onChange={(plan) => setPlan.mutate({ id: e.id, plan })} />
@@ -81,7 +90,7 @@ function EventsTable() {
               {rows.map((e) => (
                 <tr key={e.id}>
                   <td className="px-4 py-3"><Link to={`/eventos/${e.id}`} className="font-semibold hover:text-coral">{e.title}</Link><div className="text-ink-3">{fmtLongDate(e.event_date)}{e.status === 'disabled' && ' · desactivado'}</div></td>
-                  <td className="px-4 py-3">{e.owner?.name}<div className="text-ink-3">{e.owner?.email}</div></td>
+                  <td className="px-4 py-3">{e.owner?.name}<div className="text-ink-3">{e.owner?.email ?? fmtPhone(e.owner?.phone)}</div></td>
                   <td className="px-4 py-3 tabular-nums">{e.counts.photos + e.counts.videos}{e.counts.pending > 0 && <span className="text-ink-3"> (+{e.counts.pending})</span>}</td>
                   <td className="px-4 py-3 tabular-nums">{fmtSize(e.counts.storage_used)} / {fmtSize(e.counts.storage_limit)}</td>
                   <td className="px-4 py-3"><PlanSelect event={e} plans={plans} onChange={(plan) => setPlan.mutate({ id: e.id, plan })} /></td>
@@ -114,10 +123,16 @@ function UsersTable() {
     mutationFn: (u: AdminUser) => api(`/admin/users/${u.id}/${u.disabled ? 'enable' : 'disable'}`, 'POST'),
     onSuccess: () => { toast('Conta actualizada.'); void qc.invalidateQueries({ queryKey: ['/admin/users'] }) },
   })
+  // Contas sem e-mail não recuperam a senha sozinhas: a administração cria uma temporária e envia-a por WhatsApp.
+  const [temporary, setTemporary] = useState<{ user: AdminUser; password: string } | null>(null)
+  const reset = useMutation({
+    mutationFn: (u: AdminUser) => api<{ password: string }>(`/admin/users/${u.id}/reset-password`, 'POST'),
+    onSuccess: (r, u) => setTemporary({ user: u, password: r.password }),
+  })
 
   return (
     <>
-      <SearchBox value={search} onChange={setSearch} placeholder="Procurar nome ou e-mail" />
+      <SearchBox value={search} onChange={setSearch} placeholder="Procurar nome, telemóvel ou e-mail" />
       {isLoading ? <Spinner /> : (
         <Card className="p-0!">
           <ul className="divide-y divide-line">
@@ -125,15 +140,33 @@ function UsersTable() {
               <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
                   <p className="font-semibold">{u.name} {u.role === 'superadmin' && <span className="ml-1 rounded-full bg-wash px-2 py-0.5 text-xs">Administração</span>} {u.disabled && <span className="ml-1 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-bold text-danger">Desactivada</span>}</p>
-                  <p className="break-all text-sm text-ink-3">{u.email} · {u.events_count} evento(s)</p>
+                  <p className="break-all text-sm text-ink-3">{[u.phone && fmtPhone(u.phone), u.email].filter(Boolean).join(' · ')} · {u.events_count} evento(s)</p>
                 </div>
-                {u.id !== me?.id && <Button variant={u.disabled ? 'soft' : 'ghost'} className={u.disabled ? '' : 'text-danger'} onClick={() => { if (u.disabled || confirm(`Desactivar a conta de ${u.name}? Perde logo o acesso.`)) toggle.mutate(u) }}>{u.disabled ? 'Reactivar' : 'Desactivar'}</Button>}
+                {u.id !== me?.id && (
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="ghost" onClick={() => { if (confirm(`Criar uma senha temporária para ${u.name}? A senha actual deixa de funcionar.`)) reset.mutate(u) }}><KeyRound size={16} aria-hidden="true" />Repor senha</Button>
+                    <Button variant={u.disabled ? 'soft' : 'ghost'} className={u.disabled ? '' : 'text-danger'} onClick={() => { if (u.disabled || confirm(`Desactivar a conta de ${u.name}? Perde logo o acesso.`)) toggle.mutate(u) }}>{u.disabled ? 'Reactivar' : 'Desactivar'}</Button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         </Card>
       )}
       {footer}
+      {temporary && (
+        <Modal open onClose={() => setTemporary(null)} title="Senha temporária">
+          <p className="-mt-2 mb-4 text-sm text-ink-2">Envie esta senha a {temporary.user.name}. Só aparece agora: depois de fechar, não a volta a ver. Peça-lhe para a mudar em Conta.</p>
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-night p-4 text-cream">
+            <span className="font-mono text-2xl tracking-wider">{temporary.password}</span>
+            <button type="button" aria-label="Copiar senha" onClick={() => { void navigator.clipboard.writeText(temporary.password); toast('Senha copiada.') }} className="flex size-11 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20"><Copy size={18} /></button>
+          </div>
+          {temporary.user.phone && (
+            <a href={whatsappLink(temporary.user.phone, `Olá ${temporary.user.name}! A sua senha temporária da Galeria é: ${temporary.password}\nEntre com o seu telemóvel e mude-a em Conta.`)} target="_blank" rel="noreferrer"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25d366] font-semibold text-white"><MessageCircle size={20} aria-hidden="true" />Enviar por WhatsApp</a>
+          )}
+        </Modal>
+      )}
     </>
   )
 }

@@ -12,22 +12,49 @@ Legenda: 🔓 público · 👤 convidado (sessão) · 🔑 organizador autentica
 
 | Método | Rota | | Descrição |
 |---|---|---|---|
-| POST | `/register` | 🔓 | `name, email, password, password_confirmation` → cria organizador e inicia sessão (201) |
-| POST | `/login` | 🔓 | `email, password, remember?` → utilizador |
-| POST | `/forgot-password` | 🔓 | `email` → envia ligação (resposta sempre igual) |
+| POST | `/register` | 🔓 | `name, phone?, email?, password, password_confirmation` (telemóvel **ou** e-mail, ou os dois) → cria organizador e inicia sessão (201) |
+| POST | `/login` | 🔓 | `login` (telemóvel ou e-mail), `password, remember?` → utilizador |
+| POST | `/forgot-password` | 🔓 | `email` → envia ligação (resposta sempre igual). Contas só com telemóvel: ver `POST /admin/users/{id}/reset-password` |
 | POST | `/reset-password` | 🔓 | `email, token, password, password_confirmation` |
-| GET | `/me` | 🔑 | `{ id, name, email, role }` |
-| PUT | `/me` | 🔑 | `name, email` |
+| GET | `/me` | 🔑 | `{ id, name, email, phone, role }` (`email` ou `phone` podem ser `null`) |
+| PUT | `/me` | 🔑 | `name, phone?, email?` (pelo menos um dos dois) |
 | POST | `/change-password` | 🔑 | `current_password, password, password_confirmation` |
 | POST | `/logout` | 🔑 | |
 
-Limite: 30 pedidos/minuto por IP (`throttle:30,1,auth`); login: 5 tentativas erradas por e-mail+IP.
+Limite: 30 pedidos/minuto por IP (`throttle:30,1,auth`); login: 5 tentativas erradas por conta+IP.
 
-## Planos
+**Telemóvel**: aceita `923 456 789`, `244923456789`, `+244 923 456 789`, `00244923456789` (com espaços, hífenes ou parênteses) e guarda `+244923456789`. Números angolanos têm de ser `+244 9XX XXX XXX`; outros países, `+` e 8 a 15 dígitos. Erros: `phone.regex` "Número de telemóvel inválido. Ex.: 923 456 789.", `phone.unique`, e `phone`/`email` "Indique o número de telemóvel ou o e-mail." quando faltam os dois.
+
+## Planos e definições
 
 | Método | Rota | | Descrição |
 |---|---|---|---|
 | GET | `/plans` | 🔓 | `[{ key, name, price_kz, storage_mb, max_photos, videos, zip }]` |
+| GET | `/settings` | 🔓 | `{ payment: { method: "Multicaixa Express", number, holder } \| null, support_phone, proof_max_mb }` — `payment` é `null` sem `PAYMENT_EXPRESS_NUMBER` |
+
+## Mudança de plano (organizador)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/events/{id}/plan-request` | `{ current, upgrades, payment, support_phone, proof_max_mb }`. `current`: último pedido (pendente, aprovado ou recusado) ou `null`. `upgrades`: planos acima do actual, cada um com `amount_kz` (a diferença a pagar) |
+| POST | `/events/{id}/plan-request` | `multipart/form-data`: `plan`, `proof` (JPG, PNG, WebP ou PDF, até `PAYMENT_PROOF_MAX_MB`) → pedido (201). Limite: 10 em 10 min |
+| DELETE | `/plan-requests/{id}` | Cancelar um pedido pendente (o comprovativo é apagado) |
+| GET | `/plan-requests/{id}/proof` | O comprovativo, `inline`, com `Content-Security-Policy: sandbox`. Para quem gere o evento e para a administração |
+
+Erros do `POST` (422, em `errors.plan`): "Escolha um plano acima do actual.", "Já há um pedido à espera de confirmação para este evento.", "Os pagamentos ainda não estão disponíveis. Fale com a equipa da Galeria."; em `errors.proof`: comprovativo em falta, tipo ou tamanho.
+
+Objecto pedido:
+
+```json
+{
+  "id": 7, "event_id": 1, "from_plan": "basic", "to_plan": "premium",
+  "from_plan_name": "Básico", "to_plan_name": "Premium", "amount_kz": 7000,
+  "status": "pending",            // pending | approved | rejected | cancelled
+  "admin_note": null,             // motivo da recusa
+  "proof_name": "Screenshot.jpg", "proof_mime": "image/jpeg", "proof_url": "/api/plan-requests/7/proof",
+  "created_at": "…", "reviewed_at": null
+}
+```
 
 ## Eventos (organizador)
 
@@ -116,6 +143,7 @@ Prefixo `/g/{slug}`. Limite geral: 240 pedidos/minuto por IP.
   "visibility": "private", "has_access_code": true,
   "access": "granted",            // granted | needs_access | blocked | disabled
   "is_manager": false,
+  "manage_id": null,             // id do evento, só para quem o gere (botão "Voltar à gestão")
   "guest": { "name": "Tia Rosa" },
   // só com access = granted:
   "description": "…", "cover_url": "…", "upload_enabled": true, "moderation": "auto",
@@ -150,12 +178,16 @@ As URLs vêm sempre nas respostas da API; não se constroem no cliente. Ver [arq
 
 | Método | Rota | | Descrição |
 |---|---|---|---|
-| GET | `/admin/overview` | 🛡 | `organizers, events, active_events, events_by_plan, media, videos, storage_used` |
-| GET | `/admin/events` | 🛡 | Paginado; `search` (evento, endereço, organizador), `plan` |
+| GET | `/admin/overview` | 🛡 | `organizers, events, active_events, events_by_plan, media, videos, storage_used, pending_plan_requests` |
+| GET | `/admin/events` | 🛡 | Paginado; `search` (evento, endereço, nome/e-mail/telemóvel do organizador), `plan` |
 | PUT | `/admin/events/{id}/plan` | 🛡 | `plan` |
-| GET | `/admin/users` | 🛡 | Paginado; `search` |
+| GET | `/admin/users` | 🛡 | Paginado; `search` (nome, e-mail ou telemóvel, com ou sem espaços). Inclui `phone` |
 | POST | `/admin/users/{id}/disable` | 🛡 | Não a própria conta |
 | POST | `/admin/users/{id}/enable` | 🛡 | |
+| POST | `/admin/users/{id}/reset-password` | 🛡 | `{ password }`: senha temporária de 10 caracteres (a anterior deixa de funcionar). Não a própria conta |
+| GET | `/admin/plan-requests` | 🛡 | Paginado; `status` (`pending` por omissão, `approved`, `rejected`). Pedido + `event { id, title, slug, plan }` + `user { id, name, email, phone }` |
+| POST | `/admin/plan-requests/{id}/approve` | 🛡 | Muda o plano do evento (nunca para baixo) e avisa o organizador. `422` se já foi tratado |
+| POST | `/admin/plan-requests/{id}/reject` | 🛡 | `reason` (obrigatório, até 500) — o organizador vê-o no evento |
 
 ## Tempo real
 

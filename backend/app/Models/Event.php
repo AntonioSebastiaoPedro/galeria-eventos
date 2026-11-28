@@ -90,6 +90,11 @@ class Event extends Model
         return $this->hasMany(EventGuest::class);
     }
 
+    public function planRequests(): HasMany
+    {
+        return $this->hasMany(PlanRequest::class);
+    }
+
     public function exports(): HasMany
     {
         return $this->hasMany(EventExport::class);

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowDownUp, ImagePlus, Images, Loader2, Settings } from 'lucide-react'
+import { ArrowDownUp, ArrowLeft, CircleCheck, Download, ImagePlus, Images, Loader2, Share2, X } from 'lucide-react'
 import { api } from '../../api'
 import { Brand, Segmented, Spinner } from '../../components'
 import { EVENT_TYPES, fmtLongDate, plural } from '../../format'
+import { SaveSheet, ShareSheet, type ShareSubject } from '../../share'
+import { downloadEach, isIOS, MAX_BATCH, supportsFileShare } from '../../shareFiles'
 import { toast } from '../../toast'
 import type { GalleryEvent, GalleryMedia, Paged } from '../../types'
 import { useUploader } from '../../uploader'
@@ -54,7 +56,7 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
   const [type, setType] = useState<TypeFilter>('all')
   const [sort, setSort] = useState<'new' | 'old'>('new')
   const [open, setOpen] = useState<number | null>(null)
-  const [sharing, setSharing] = useState(false)
+  const [adding, setAdding] = useState(false)
 
   const media = useInfiniteQuery({
     queryKey: ['gallery-media', slug, type, sort],
@@ -89,6 +91,37 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
 
   const shareUrl = `${location.origin}/g/${slug}`
   const canUpload = !!e.upload_enabled && !e.storage_full && !!e.rules
+  // O link de uma galeria privada não leva a chave: só serve a quem já a tem. Partilha-se a galeria se for pública.
+  const canShareGallery = e.visibility === 'public'
+
+  // Selecção para descarregar ou partilhar vários de uma vez. Guarda os próprios itens: mudar o filtro não perde a selecção.
+  const [selected, setSelected] = useState<Map<number, GalleryMedia> | null>(null)
+  const selecting = selected !== null
+  const chosen = useMemo(() => [...(selected?.values() ?? [])], [selected])
+  const toggle = (m: GalleryMedia) => setSelected((cur) => {
+    const next = new Map(cur)
+    if (next.has(m.id)) next.delete(m.id)
+    else if (next.size >= MAX_BATCH) { toast(`Pode seleccionar até ${MAX_BATCH} de cada vez.`); return cur }
+    else if (m.download_url) next.set(m.id, m)
+    return next
+  })
+  const stopSelecting = () => setSelected(null)
+
+  const [share, setShare] = useState<ShareSubject | null>(null)
+  const [saving, setSaving] = useState<GalleryMedia[] | null>(null)
+  const shareGallery = () => setShare({ kind: 'link', url: shareUrl, title: e.title, text: `Veja e partilhe as fotografias e os vídeos de ${e.title}:` })
+  const shareSelected = () => setShare({ kind: 'media', items: chosen, url: shareUrl, title: e.title })
+  const saveSelected = () => {
+    if (isIOS() && supportsFileShare()) setSaving(chosen)
+    else { void downloadEach(chosen); stopSelecting() }
+  }
+
+  const sortToggle = (
+    <button type="button" onClick={() => setSort(sort === 'new' ? 'old' : 'new')} aria-label={sort === 'new' ? 'Ordem: mais recentes primeiro. Tocar para ver as mais antigas primeiro.' : 'Ordem: mais antigas primeiro. Tocar para ver as mais recentes primeiro.'}
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-cream/70 active:bg-white/10">
+      <ArrowDownUp size={15} aria-hidden="true" />{sort === 'new' ? 'Mais recentes primeiro' : 'Mais antigas primeiro'}
+    </button>
+  )
 
   return (
     <GalleryFrame header={<></>}>
@@ -98,7 +131,7 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
         <div className="mx-auto max-w-7xl px-4 md:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link to="/" aria-label="Página inicial"><Brand onDark /></Link>
-            {e.is_manager && <Link to="/eventos" className="inline-flex h-10 items-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-semibold hover:bg-white/20"><Settings size={16} aria-hidden="true" />Gerir</Link>}
+            {e.is_manager && <Link to={e.manage_id ? `/eventos/${e.manage_id}` : '/eventos'} className="inline-flex h-11 items-center gap-2 rounded-xl bg-cream px-3.5 text-sm font-semibold text-ink hover:bg-white"><ArrowLeft size={16} aria-hidden="true" />Voltar à gestão</Link>}
           </div>
           <div className={`pb-10 ${e.cover_url ? 'pt-24 md:pt-40' : 'pt-10 md:pt-16'}`}>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">Galeria do evento</p>
@@ -106,9 +139,10 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
             <p className="mt-3 text-cream/75">{fmtLongDate(e.event_date)} · {EVENT_TYPES[e.event_type]}</p>
             {e.description && <p className="mt-4 max-w-2xl text-lg text-cream/85">{e.description}</p>}
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              {canUpload && <button onClick={() => setSharing(true)} className="inline-flex h-12 items-center gap-2 rounded-xl bg-coral px-5 font-semibold text-white transition hover:brightness-110 active:scale-[0.98]"><ImagePlus size={20} aria-hidden="true" />Partilhar fotografias</button>}
-              <span className="text-sm text-cream/60">{plural(e.photos ?? 0, 'fotografia', 'fotografias')}{(e.videos ?? 0) > 0 && ` · ${plural(e.videos ?? 0, 'vídeo', 'vídeos')}`}</span>
+              {canUpload && <button onClick={() => setAdding(true)} className="inline-flex h-12 items-center gap-2 rounded-xl bg-coral px-5 font-semibold text-white transition hover:brightness-110 active:scale-[0.98]"><ImagePlus size={20} aria-hidden="true" />Adicionar fotos e vídeos</button>}
+              {canShareGallery && <button onClick={shareGallery} className="inline-flex h-12 items-center gap-2 rounded-xl bg-white/10 px-4 font-semibold transition hover:bg-white/20 active:scale-[0.98]"><Share2 size={18} aria-hidden="true" />Partilhar galeria</button>}
             </div>
+            <p className="mt-3 text-sm text-cream/60">{plural(e.photos ?? 0, 'fotografia', 'fotografias')}{(e.videos ?? 0) > 0 && ` · ${plural(e.videos ?? 0, 'vídeo', 'vídeos')}`}</p>
             {!e.upload_enabled && <p className="mt-4 text-sm text-cream/60">O organizador fechou os envios. Pode continuar a ver e descarregar.</p>}
             {e.upload_enabled && e.storage_full && <p className="mt-4 text-sm text-cream/60">A galeria está cheia: não é possível enviar mais neste momento.</p>}
           </div>
@@ -116,18 +150,31 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
       </section>
 
       <div className="sticky top-0 z-20 border-b border-white/10 bg-night/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-2 py-2 md:px-8 md:py-2.5">
-          <Segmented dark value={type} onChange={setType} options={[{ value: 'all', label: 'Tudo' }, { value: 'photo', label: 'Fotografias' }, ...(e.rules?.videos || (e.videos ?? 0) > 0 ? [{ value: 'video' as const, label: 'Vídeos' }] : [])]} />
-          {/* Telemóvel: a ordem é um botão que alterna, para os filtros caberem numa só linha. */}
-          <button type="button" onClick={() => setSort(sort === 'new' ? 'old' : 'new')} aria-label={sort === 'new' ? 'Ordem: mais recentes primeiro. Tocar para ver as mais antigas primeiro.' : 'Ordem: mais antigas primeiro. Tocar para ver as mais recentes primeiro.'}
-            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-3 text-sm font-semibold text-cream/90 active:bg-white/20 sm:hidden">
-            <ArrowDownUp size={16} aria-hidden="true" /><span className="hidden min-[380px]:inline">{sort === 'new' ? 'Recentes' : 'Antigas'}</span>
-          </button>
-          <div className="hidden sm:block"><Segmented dark value={sort} onChange={setSort} options={[{ value: 'new', label: 'Recentes' }, { value: 'old', label: 'Antigas' }]} /></div>
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-2 md:px-8">
+          {selecting ? (
+            <>
+              <button type="button" onClick={stopSelecting} className="inline-flex h-11 items-center gap-1.5 rounded-xl px-3 font-semibold active:bg-white/10"><X size={20} aria-hidden="true" />Cancelar</button>
+              <span className="text-sm font-semibold tabular-nums" role="status">{chosen.length ? `${chosen.length} seleccionado${chosen.length === 1 ? '' : 's'}` : 'Toque para seleccionar'}</span>
+            </>
+          ) : (
+            <>
+              <Segmented dark value={type} onChange={setType} options={[{ value: 'all', label: 'Tudo' }, { value: 'photo', label: 'Fotos' }, ...(e.rules?.videos || (e.videos ?? 0) > 0 ? [{ value: 'video' as const, label: 'Vídeos' }] : [])]} />
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:block"><Segmented dark value={sort} onChange={setSort} options={[{ value: 'new', label: 'Recentes' }, { value: 'old', label: 'Antigas' }]} /></div>
+                {items.length > 0 && (
+                  <button type="button" onClick={() => setSelected(new Map())} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-3.5 text-sm font-semibold active:bg-white/20 hover:bg-white/20">
+                    <CircleCheck size={18} aria-hidden="true" />Seleccionar
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      <main className="mx-auto max-w-7xl px-2 pt-3 md:px-8 md:pt-6">
+      <main className="mx-auto max-w-7xl px-2 pt-2 md:px-8 md:pt-6">
+        {/* Telemóvel: a ordem fica por cima da grelha, para os filtros e o "Seleccionar" caberem numa só linha. */}
+        {!selecting && items.length > 1 && <div className="mb-1 flex justify-end sm:hidden">{sortToggle}</div>}
         {media.isLoading ? <div className="flex justify-center py-16 text-cream/60"><Spinner /></div> : items.length === 0 ? (
           <div className="mx-auto max-w-md py-20 text-center">
             <Images size={40} className="mx-auto text-gold" aria-hidden="true" />
@@ -137,7 +184,7 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
         ) : (
           <>
             <div className="columns-2 gap-2 sm:columns-3 md:gap-3 lg:columns-4">
-              {items.map((m, i) => <MediaTile key={m.id} m={m} onOpen={() => setOpen(i)} />)}
+              {items.map((m, i) => <MediaTile key={m.id} m={m} selected={selected ? selected.has(m.id) : undefined} onOpen={() => (selecting ? toggle(m) : setOpen(i))} />)}
             </div>
             {hasNextPage && <div ref={sentinel} className="h-1" aria-hidden="true" />}
             {isFetchingNextPage && <div className="flex justify-center py-6 text-cream/50"><Loader2 className="animate-spin" aria-label="A carregar mais" /></div>}
@@ -146,24 +193,36 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
         )}
       </main>
 
-      {canUpload && !sharing && (
-        <button onClick={() => setSharing(true)} aria-label="Partilhar fotografias"
+      {selecting && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-night/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+          <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
+            <button type="button" disabled={!chosen.length} onClick={saveSelected} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white/10 font-semibold transition active:scale-[0.98] disabled:opacity-40"><Download size={20} aria-hidden="true" />Descarregar</button>
+            <button type="button" disabled={!chosen.length} onClick={shareSelected} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-coral font-semibold text-white transition active:scale-[0.98] disabled:opacity-40"><Share2 size={20} aria-hidden="true" />Partilhar</button>
+          </div>
+        </div>
+      )}
+
+      {canUpload && !adding && !selecting && (
+        <button onClick={() => setAdding(true)} aria-label="Adicionar fotos e vídeos"
           className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-30 inline-flex h-14 items-center gap-2 rounded-full bg-coral px-5 font-semibold text-white shadow-xl shadow-black/40 transition hover:brightness-110 active:scale-95 md:hidden">
           {uploader.busy ? <Loader2 size={22} className="animate-spin" aria-hidden="true" /> : <ImagePlus size={22} aria-hidden="true" />}
-          {uploader.busy ? 'A enviar…' : 'Partilhar'}
+          {uploader.busy ? 'A enviar…' : 'Adicionar'}
         </button>
       )}
 
       {e.rules && (
-        <UploadPanel open={sharing} onClose={() => setSharing(false)} rules={e.rules} moderated={e.moderation === 'manual' && !e.is_manager}
+        <UploadPanel open={adding} onClose={() => setAdding(false)} rules={e.rules} moderated={e.moderation === 'manual' && !e.is_manager}
           askName={!e.is_manager} initialName={e.guest?.name ?? ''} uploader={uploader} />
       )}
 
       {open !== null && (
-        <Lightbox items={items} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onNeedMore={more} shareUrl={shareUrl} title={e.title}
+        <Lightbox items={items} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onNeedMore={more}
+          onShare={(m) => setShare({ kind: 'media', items: [m], url: shareUrl, title: e.title })}
           onDelete={(m) => { if (confirm('Apagar esta fotografia/vídeo da galeria? Não se pode desfazer.')) remove.mutate(m) }} />
       )}
+
+      <ShareSheet subject={share} onClose={() => setShare(null)} />
+      <SaveSheet items={saving} onClose={() => { setSaving(null); stopSelecting() }} />
     </GalleryFrame>
   )
 }
-

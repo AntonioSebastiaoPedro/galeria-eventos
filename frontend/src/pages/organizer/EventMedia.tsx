@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Check, CheckCheck, ImagePlus, Images, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { Button, buttonClass, EmptyState, Segmented, Spinner } from '../../components'
@@ -9,6 +10,7 @@ import { toast } from '../../toast'
 import type { ManagedMedia } from '../../types'
 import Lightbox from '../gallery/Lightbox'
 import { MediaTile } from '../gallery/MediaTile'
+import { ShareSheet, type ShareSubject } from '../../share'
 import { useEvent } from './useEvent'
 
 type Status = 'all' | 'pending' | 'approved' | 'processing'
@@ -22,6 +24,7 @@ export default function EventMediaPage() {
   const [kind, setKind] = useState<Kind>('all')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [open, setOpen] = useState<number | null>(null)
+  const [sharing, setSharing] = useState<ShareSubject | null>(null)
   const path = `/events/${e.id}/media`
   const { rows, total, isLoading, footer } = usePaged<ManagedMedia>(path, { ...(status !== 'all' ? { status } : {}), ...(kind !== 'all' ? { type: kind } : {}) })
 
@@ -54,7 +57,7 @@ export default function EventMediaPage() {
           ]} />
           <Segmented full value={kind} onChange={setKind} options={[{ value: 'all', label: 'Todos' }, { value: 'photo', label: 'Fotografias' }, { value: 'video', label: 'Vídeos' }]} />
         </div>
-        <a href={`/g/${e.slug}`} target="_blank" rel="noreferrer" className={buttonClass('soft', 'w-full sm:w-auto')}><ImagePlus size={18} aria-hidden="true" />Enviar na galeria</a>
+        <Link to={`/g/${e.slug}`} className={buttonClass('soft', 'w-full sm:w-auto')}><ImagePlus size={18} aria-hidden="true" />Enviar na galeria</Link>
       </div>
 
       {e.moderation === 'auto' && status === 'pending' && <p className="mb-4 text-sm text-ink-2">A moderação está em automático: o que os convidados enviam é publicado logo. Pode mudar em Definições.</p>}
@@ -98,9 +101,10 @@ export default function EventMediaPage() {
       )}
 
       {open !== null && (
-        <Lightbox items={rows} index={open} onIndex={setOpen} onClose={() => setOpen(null)} shareUrl={`${location.origin}/g/${e.slug}`} title={e.title}
+        <Lightbox items={rows} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onShare={(m) => setSharing({ kind: 'media', items: [m], url: `${location.origin}/g/${e.slug}`, title: e.title })}
           onDelete={(m) => { if (confirm('Apagar da galeria? Não se pode desfazer.')) remove.mutate(m as ManagedMedia) }} />
       )}
+      <ShareSheet subject={sharing} onClose={() => setSharing(null)} />
     </>
   )
 }

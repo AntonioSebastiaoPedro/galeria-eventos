@@ -47,4 +47,33 @@ class AdminTest extends TestCase
         $this->actingAs($admin)->postJson("/api/admin/users/{$user->id}/enable")->assertOk();
         $this->assertFalse($user->fresh()->isDisabled());
     }
+
+    public function test_admin_resets_the_password_of_an_account_without_email(): void
+    {
+        $user = User::factory()->create(['email' => null, 'phone' => '+244923456789']);
+
+        $password = $this->actingAs(User::factory()->superadmin()->create())->postJson("/api/admin/users/{$user->id}/reset-password")
+            ->assertOk()->json('password');
+
+        $this->newBrowser();
+        $this->postJson('/api/login', ['login' => '923456789', 'password' => $password])->assertOk();
+        $this->newBrowser();
+        $this->postJson('/api/login', ['login' => '923456789', 'password' => 'password'])->assertUnprocessable();
+    }
+
+    public function test_organizers_cannot_reset_passwords(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs(User::factory()->create())->postJson("/api/admin/users/{$user->id}/reset-password")->assertForbidden();
+    }
+
+    public function test_admin_finds_accounts_by_phone_typed_with_spaces(): void
+    {
+        User::factory()->create(['name' => 'Ana', 'email' => null, 'phone' => '+244923456789']);
+        User::factory()->create(['name' => 'Pedro']);
+
+        $this->actingAs(User::factory()->superadmin()->create())->getJson('/api/admin/users?search=923 456')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Ana');
+    }
 }

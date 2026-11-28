@@ -16,7 +16,7 @@ interface Props {
 
 const NAME_KEY = 'galeria.name'
 
-// Partilhar: escolher na galeria do telemóvel ou tirar uma fotografia, com o nome (ou pseudónimo) de quem partilha.
+// Adicionar à galeria: escolher na galeria do telemóvel ou tirar uma fotografia, com o nome (ou pseudónimo) de quem partilha.
 export default function UploadPanel({ open, onClose, rules, moderated, askName, initialName, uploader }: Props) {
   const [name, setName] = useState(() => initialName || localStorage.getItem(NAME_KEY) || '')
   const [caption, setCaption] = useState('')
@@ -38,7 +38,7 @@ export default function UploadPanel({ open, onClose, rules, moderated, askName, 
   const done = uploader.items.filter((i) => i.status === 'done').length
 
   return (
-    <Modal open={open} onClose={onClose} title="Partilhar fotografias" wide>
+    <Modal open={open} onClose={onClose} title="Adicionar fotos e vídeos" wide>
       {askName && (
         <label className="mb-4 block">
           <span className="mb-1.5 block text-sm font-semibold">O seu nome</span>

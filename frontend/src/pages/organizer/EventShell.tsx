@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { Eye } from 'lucide-react'
 import { api } from '../../api'
 import { buttonClass, EmptyState, Spinner } from '../../components'
 import { EVENT_TYPES, fmtLongDate } from '../../format'
@@ -49,7 +49,7 @@ export default function EventShell() {
           <h1 className="break-words font-display text-[1.75rem] font-semibold leading-tight md:text-[2.75rem]">{e.title}</h1>
           {e.status === 'disabled' && <p className="mt-1 text-sm font-semibold text-danger">Galeria desactivada: os convidados não a conseguem abrir.</p>}
         </div>
-        <a href={`/g/${e.slug}`} target="_blank" rel="noreferrer" aria-label="Ver galeria" title="Ver galeria" className={buttonClass('soft', 'w-11 shrink-0 px-0! sm:w-auto sm:px-5!')}><ExternalLink size={18} aria-hidden="true" /><span className="hidden sm:inline">Ver galeria</span></a>
+        <Link to={`/g/${e.slug}`} aria-label="Ver galeria" title="Ver galeria" className={buttonClass('soft', 'w-11 shrink-0 px-0! sm:w-auto sm:px-5!')}><Eye size={18} aria-hidden="true" /><span className="hidden sm:inline">Ver galeria</span></Link>
       </div>
       {/* No telemóvel: os quatro separadores repartem a largura e ficam presos por baixo do cabeçalho. */}
       <nav aria-label="Secções do evento" className="sticky top-14 z-20 -mx-4 mb-5 grid grid-cols-4 border-b border-line bg-canvas/95 px-1 backdrop-blur md:static md:mx-0 md:mb-6 md:flex md:gap-1 md:bg-transparent md:px-0 md:backdrop-blur-none">

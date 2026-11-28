@@ -18,7 +18,7 @@ export interface ManagedEvent {
   plan: Plan
   cover_url: string | null
   guest_url: string
-  owner: { id: number; name: string; email: string } | null
+  owner: { id: number; name: string; email: string | null; phone: string | null } | null
   counts: Counts
   created_at: string
 }
@@ -62,6 +62,7 @@ export interface GalleryEvent {
   has_access_code: boolean
   access: 'granted' | 'needs_access' | 'blocked' | 'disabled'
   is_manager: boolean
+  manage_id: number | null
   guest: { name: string | null } | null
   description?: string | null
   cover_url?: string | null
@@ -76,5 +77,33 @@ export interface GalleryEvent {
 export interface Guest { id: number; name: string | null; blocked: boolean; photos: number; videos: number; last_seen_at: string | null; created_at: string }
 
 export interface Export { id: number; status: 'queued' | 'processing' | 'ready' | 'failed'; file_size: number | null; items: number | null; error: string | null; created_at: string; expires_at: string }
+
+export interface PlanRequest {
+  id: number
+  event_id: number
+  from_plan: string
+  to_plan: string
+  from_plan_name: string
+  to_plan_name: string
+  amount_kz: number
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  admin_note: string | null
+  proof_name: string | null
+  proof_mime: string | null
+  proof_url: string | null
+  created_at: string
+  reviewed_at: string | null
+}
+
+export interface AppSettings {
+  payment: { method: string; number: string; holder: string | null } | null
+  support_phone: string | null
+  proof_max_mb: number
+}
+
+export interface PlanRequestInfo extends AppSettings {
+  current: PlanRequest | null
+  upgrades: (Plan & { amount_kz: number })[]
+}
 
 export interface Paged<T> { data: T[]; current_page: number; last_page: number; per_page: number; total: number }

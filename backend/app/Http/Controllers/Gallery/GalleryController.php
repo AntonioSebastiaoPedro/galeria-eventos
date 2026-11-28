@@ -25,10 +25,13 @@ class GalleryController extends Controller
         $denial = GalleryAccess::denial($request, $event);
         $guest = GalleryAccess::guest($request, $event);
         $guest?->update(['last_seen_at' => now()]);
+        $isManager = GalleryAccess::isManager($request, $event);
 
         return response()->json(EventPresenter::forGallery($event, $denial === null) + [
             'access' => $denial ?? 'granted',
-            'is_manager' => GalleryAccess::isManager($request, $event),
+            'is_manager' => $isManager,
+            // Só quem gere o evento recebe o id, para o botão "Voltar à gestão" levar a este evento.
+            'manage_id' => $isManager ? $event->id : null,
             'guest' => $guest && $denial === null ? ['name' => $guest->name] : null,
         ]);
     }

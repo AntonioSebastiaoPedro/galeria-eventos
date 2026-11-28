@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Download, FileDown, Image, KeyRound, Loader2, Share2, Users, Video } from 'lucide-react'
+import { Download, FileDown, Image, KeyRound, LayoutGrid, Loader2, Share2, Users, Video } from 'lucide-react'
 import { api } from '../../api'
-import { Button, Card, Meter } from '../../components'
-import { fmtDateTime, fmtKz, fmtSize, plural } from '../../format'
-import { downloadCardPdf, downloadCardPng } from '../../qrCard'
+import { Button, Card, Field, Modal } from '../../components'
+import { fmtDateTime, fmtSize, plural } from '../../format'
+import { downloadCardPdf, downloadCardPng, downloadSheetsPdf, MAX_CARDS, PER_SHEET } from '../../qrCard'
 import { notifyError, toast } from '../../toast'
 import type { Export } from '../../types'
+import { ShareSheet, type ShareSubject } from '../../share'
+import PlanCard from './PlanCard'
 import { useEvent } from './useEvent'
 
 interface Stats {
@@ -28,13 +31,12 @@ export default function EventOverview() {
   })
 
   const card = qr.data && { title: e.title, event_type: e.event_type, event_date: e.event_date, qr_png: qr.data.qr_png, url: qr.data.url }
-  const copy = async () => { await navigator.clipboard.writeText(e.guest_url); toast('Link copiado.') }
-  const share = async () => {
-    try {
-      if (navigator.share) await navigator.share({ title: e.title, text: 'Partilhe as suas fotografias e vídeos do evento:', url: e.guest_url })
-      else await copy()
-    } catch { /* cancelado */ }
-  }
+  const [sharing, setSharing] = useState<ShareSubject | null>(null)
+  const [sheets, setSheets] = useState(false)
+  const share = () => setSharing({
+    kind: 'link', url: e.guest_url, title: e.title, text: `Partilhe as suas fotografias e vídeos de ${e.title}:`,
+    warning: e.visibility === 'private' ? 'Este link leva a chave da galeria privada: quem o receber entra. Envie-o em conversas, não em publicações públicas.' : undefined,
+  })
   const max = Math.max(1, ...(stats.data?.by_day.map((d) => d.total) ?? [1]))
 
   return (
@@ -47,10 +49,8 @@ export default function EventOverview() {
             {qr.data ? <img src={qr.data.qr_png} alt="QR Code da galeria" className="size-full [image-rendering:pixelated]" /> : <Loader2 className="animate-spin text-ink-3" />}
           </div>
           <div className="w-full min-w-0 space-y-2">
-            <div className="flex items-center gap-2 rounded-xl bg-white/10 p-1 pl-3">
-              <span className="min-w-0 flex-1 truncate font-mono text-sm">{e.guest_url}</span>
-              <button onClick={copy} aria-label="Copiar link" className="flex size-10 shrink-0 items-center justify-center rounded-lg hover:bg-white/15"><Copy size={18} /></button>
-            </div>
+            <p className="truncate font-mono text-sm text-cream/70">{e.guest_url}</p>
+            <Button variant="light" className="w-full" disabled={!card} onClick={() => setSheets(true)}><LayoutGrid size={18} aria-hidden="true" />Cartões para as mesas (A4)</Button>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="light" disabled={!card} onClick={() => card && downloadCardPdf(card).catch(notifyError)}><FileDown size={18} aria-hidden="true" />PDF</Button>
               <Button variant="light" disabled={!card} onClick={() => card && downloadCardPng(card).catch(notifyError)}><Download size={18} aria-hidden="true" />Imagem</Button>
@@ -109,20 +109,11 @@ export default function EventOverview() {
         )}
       </Card>
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold">Plano {e.plan.name}</h2>
-            <p className="text-sm text-ink-2">{fmtKz(e.plan.price_kz)} · {e.plan.videos ? 'fotografias e vídeos' : 'só fotografias'}{e.plan.max_photos ? ` · até ${e.plan.max_photos} fotografias` : ''}{e.plan.zip ? ' · ZIP' : ''}</p>
-          </div>
-        </div>
-        <div className="mt-5"><Meter label={`${fmtSize(e.counts.storage_used)} de ${fmtSize(e.counts.storage_limit)}`} value={e.counts.storage_used} max={e.counts.storage_limit} /></div>
-        {e.plan.key === 'free' || e.counts.storage_used / e.counts.storage_limit > 0.8 ? (
-          <p className="mt-4 text-sm text-ink-2">Precisa de mais espaço, de vídeos ou do ZIP? Fale com a equipa da Galeria para mudar o plano deste evento.</p>
-        ) : null}
-      </Card>
+      <PlanCard />
 
       <ExportCard />
+      <ShareSheet subject={sharing} onClose={() => setSharing(null)} />
+      {sheets && card && <SheetsDialog card={card} onClose={() => setSheets(false)} />}
     </div>
   )
 }
@@ -164,5 +155,43 @@ function ExportCard() {
         </>
       )}
     </Card>
+  )
+}
+
+// Vários cartões com o QR em folhas A4 (9 por folha, 3 × 3) para imprimir, cortar e pôr nas mesas.
+function SheetsDialog({ card, onClose }: { card: Parameters<typeof downloadSheetsPdf>[0]; onClose: () => void }) {
+  const [count, setCount] = useState('9')
+  const [busy, setBusy] = useState(false)
+  const n = Math.min(MAX_CARDS, Math.max(0, Math.floor(Number(count) || 0)))
+  const sheets = Math.ceil(n / PER_SHEET)
+  const spare = sheets * PER_SHEET - n
+  const download = async () => {
+    setBusy(true)
+    try {
+      await downloadSheetsPdf(card, n)
+      toast(`PDF com ${plural(n, 'cartão', 'cartões')} pronto.`)
+      onClose()
+    } catch (err) { notifyError(err) } finally { setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title="Cartões para as mesas">
+      <form onSubmit={(ev) => { ev.preventDefault(); if (n) void download() }}>
+        <p className="mb-4 text-sm text-ink-2">Cada folha A4 leva até {PER_SHEET} cartões com o QR Code, em 3 filas de 3. Imprima, corte pelas linhas tracejadas e coloque um em cada mesa.</p>
+        <Field label="Quantos cartões?" type="number" inputMode="numeric" min={1} max={MAX_CARDS} step={1} required value={count} onChange={(ev) => setCount(ev.target.value)}
+          hint={`Por exemplo, um por mesa. Máximo ${MAX_CARDS}.`} />
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[9, 18, 27, 45].map((v) => (
+            <button key={v} type="button" onClick={() => setCount(String(v))}
+              className={`h-10 rounded-full border px-4 text-sm font-semibold ${n === v ? 'border-coral bg-coral text-white' : 'border-line hover:bg-wash'}`}>{v}</button>
+          ))}
+        </div>
+        <p className="mb-4 rounded-xl bg-wash px-4 py-3 text-sm" role="status">
+          {n ? <><b>{plural(sheets, 'folha', 'folhas')}</b> para imprimir{spare > 0 && <span className="text-ink-2"> · a última fica com {plural(PER_SHEET - spare, 'cartão', 'cartões')}</span>}</> : 'Indique um número de 1 a ' + MAX_CARDS + '.'}
+        </p>
+        <Button className="w-full" disabled={!n || busy}>
+          {busy ? <><Loader2 size={18} className="animate-spin" aria-hidden="true" />A preparar as folhas…</> : <><FileDown size={18} aria-hidden="true" />Descarregar PDF</>}
+        </Button>
+      </form>
+    </Modal>
   )
 }

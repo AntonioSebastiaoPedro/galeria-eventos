@@ -17,7 +17,7 @@ use Laravel\Sanctum\HasApiTokens;
  * Organizador de eventos (role organizer) ou administração da plataforma (role superadmin).
  * Os convidados não têm conta: ver EventGuest.
  */
-#[Fillable(['name', 'email', 'password', 'role'])]
+#[Fillable(['name', 'email', 'phone', 'password', 'role'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -49,6 +49,47 @@ class User extends Authenticatable
         return Attribute::make(set: fn (mixed $value) => self::normalizeEmail($value));
     }
 
+    /**
+     * Telemóvel no formato internacional. Os números angolanos podem vir como "923 456 789", "244923456789",
+     * "+244 923 456 789" ou "00244923456789"; todos ficam "+244923456789". Outro texto volta limpo, para a validação o recusar.
+     */
+    public static function normalizePhone(mixed $phone): ?string
+    {
+        if (! is_string($phone) || trim($phone) === '') {
+            return null;
+        }
+        $clean = preg_replace('/[\s().\-]/', '', trim($phone));
+        if (str_starts_with($clean, '00')) {
+            $clean = '+'.substr($clean, 2);
+        }
+        if (preg_match('/^9\d{8}$/', $clean)) {
+            return '+244'.$clean;
+        }
+        if (preg_match('/^2449\d{8}$/', $clean)) {
+            return '+'.$clean;
+        }
+
+        return $clean;
+    }
+
+    /**
+     * Regra de validação do telemóvel já normalizado: angolano (+244 9XX XXX XXX) ou internacional válido.
+     */
+    public const PHONE_RULE = 'regex:/^(\+2449\d{8}|\+(?!244)[1-9]\d{7,14})$/';
+
+    protected function phone(): Attribute
+    {
+        return Attribute::make(set: fn (mixed $value) => self::normalizePhone($value));
+    }
+
+    /**
+     * Onde contactar a pessoa: e-mail, se tiver, senão o telemóvel.
+     */
+    public function contact(): ?string
+    {
+        return $this->email ?? $this->phone;
+    }
+
     public function sendPasswordResetNotification($token): void
     {
         $this->notify(new ResetPassword($token));
@@ -67,5 +108,13 @@ class User extends Authenticatable
     public function events(): HasMany
     {
         return $this->hasMany(Event::class);
+    }
+
+    /**
+     * Só as contas com e-mail recebem notificações por e-mail; as outras vêem tudo na aplicação.
+     */
+    public function routeNotificationForMail(): ?string
+    {
+        return $this->email;
     }
 }

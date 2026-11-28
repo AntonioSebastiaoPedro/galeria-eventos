@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\PlanRequestController as AdminPlanRequestController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventExportController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\EventGuestController;
 use App\Http\Controllers\EventMediaController;
 use App\Http\Controllers\Gallery\GalleryController;
 use App\Http\Controllers\MediaFileController;
+use App\Http\Controllers\PlanRequestController;
 use Illuminate\Support\Facades\Route;
 
 // O 3.º parâmetro do throttle é o prefixo do contador: sem ele, todas as rotas com limite partilham o mesmo contador por IP.
@@ -19,6 +21,7 @@ Route::middleware('throttle:30,1,auth')->group(function () {
 });
 
 Route::get('/plans', [EventController::class, 'plans']);
+Route::get('/settings', [EventController::class, 'settings']);
 
 // Ficheiros: a URL assinada é a autorização (ver MediaUrls e EventPresenter::coverUrl).
 Route::get('/media/{media}/{variant}', [MediaFileController::class, 'show'])->middleware('signed:relative')->name('media.file');
@@ -65,6 +68,11 @@ Route::middleware(['auth:sanctum', 'account.enabled', 'throttle:240,1'])->group(
     Route::post('/events/{event}/export', [EventExportController::class, 'store']);
     Route::get('/exports/{export}/download', [EventExportController::class, 'download']);
 
+    Route::get('/events/{event}/plan-request', [PlanRequestController::class, 'show']);
+    Route::post('/events/{event}/plan-request', [PlanRequestController::class, 'store'])->middleware('throttle:10,10,plan-request');
+    Route::delete('/plan-requests/{planRequest}', [PlanRequestController::class, 'destroy']);
+    Route::get('/plan-requests/{planRequest}/proof', [PlanRequestController::class, 'proof']);
+
     Route::middleware('role:superadmin')->prefix('admin')->group(function () {
         Route::get('/overview', [AdminController::class, 'overview']);
         Route::get('/events', [AdminController::class, 'events']);
@@ -72,5 +80,10 @@ Route::middleware(['auth:sanctum', 'account.enabled', 'throttle:240,1'])->group(
         Route::get('/users', [AdminController::class, 'users']);
         Route::post('/users/{user}/disable', [AdminController::class, 'disable']);
         Route::post('/users/{user}/enable', [AdminController::class, 'enable']);
+        Route::post('/users/{user}/reset-password', [AdminController::class, 'resetPassword']);
+
+        Route::get('/plan-requests', [AdminPlanRequestController::class, 'index']);
+        Route::post('/plan-requests/{planRequest}/approve', [AdminPlanRequestController::class, 'approve']);
+        Route::post('/plan-requests/{planRequest}/reject', [AdminPlanRequestController::class, 'reject']);
     });
 });

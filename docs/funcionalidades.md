@@ -20,7 +20,7 @@ Este documento descreve tudo o que o MVP faz, por interveniente. A arquitectura 
 
 | Interveniente | Conta | O que faz |
 |---|---|---|
-| **Organizador** | Sim (e-mail e senha) | Cria e gere as galerias dos seus eventos |
+| **Organizador** | Sim (telemóvel e/ou e-mail, e senha) | Cria e gere as galerias dos seus eventos |
 | **Convidado** | Não | Abre a galeria pelo link/QR Code, vê, descarrega e partilha fotografias e vídeos |
 | **Administração** (superadmin) | Sim | Vê todos os eventos e contas, muda o plano de cada evento, desactiva contas |
 
@@ -35,6 +35,7 @@ As fotografias são tiradas e partilhadas no telemóvel, e é também no telemó
 - listas e tabelas passam a cartões no telemóvel (ex.: eventos na administração);
 - janelas abrem como painéis de baixo para cima; a barra inferior e os botões flutuantes respeitam a zona do gesto do iPhone;
 - instalável no ecrã inicial (PWA), com a barra de estado do iOS fora do conteúdo.
+- o logótipo "Galeria", no canto superior esquerdo, leva sempre à página inicial (quem tem sessão vê lá "Os meus eventos").
 
 As páginas são verificadas num navegador com 360 px (Android) e 390 px (iPhone).
 
@@ -46,10 +47,12 @@ As páginas são verificadas num navegador com 360 px (Android) e 390 px (iPhone
 
 | Funcionalidade | Onde | Regras |
 |---|---|---|
-| Criar conta | `/criar-conta` | Nome, e-mail e senha (mín. 8 caracteres). O e-mail é guardado em minúsculas e não se pode repetir. Entra logo e vai para "Novo evento". |
-| Entrar | `/entrar` | E-mail e senha. A sessão fica lembrada no navegador. Ao fim de 5 tentativas erradas (por e-mail + IP) espera 1 minuto. A mensagem de erro é a mesma para e-mail inexistente e senha errada. |
-| Recuperar a senha | `/recuperar-senha` | Envia por e-mail uma ligação para `/definir-senha`. A resposta é sempre igual, exista ou não a conta. |
-| Alterar dados e senha | `/conta` | Nome, e-mail e senha (pede a senha actual). |
+| Criar conta | `/criar-conta` | Nome, **telemóvel ou e-mail** (à escolha; telemóvel por omissão) e senha (mín. 8 caracteres). Entra logo e vai para "Novo evento". |
+| Entrar | `/entrar` | Um só campo **"Telemóvel ou e-mail"** e a senha. A sessão fica lembrada no navegador. Ao fim de 5 tentativas erradas (por conta + IP) espera 1 minuto. A mensagem de erro é a mesma para conta inexistente e senha errada. |
+| Recuperar a senha | `/recuperar-senha` | **Com e-mail**: envia uma ligação para `/definir-senha` (a resposta é sempre igual, exista ou não a conta). **Com telemóvel**: não há SMS no MVP; a página leva ao WhatsApp de apoio (`SUPPORT_PHONE`) e a administração cria uma senha temporária (ver secção 4). |
+| Alterar dados e senha | `/conta` | Nome, telemóvel, e-mail (pelo menos um dos dois) e senha (pede a senha actual). |
+
+**Telemóvel**: muitos organizadores não têm ou não usam e-mail, por isso a conta pode ter só telemóvel. Os números angolanos escrevem-se como se quiser — `923 456 789`, `+244 923 456 789`, `00244923456789` — e guardam-se sempre como `+244923456789`; não se podem repetir. O campo mostra o indicativo `+244`; um número de outro país escreve-se começando por `+`. O e-mail continua opcional: quem o tem recupera a senha sozinho e recebe os avisos por e-mail.
 | Terminar sessão | Menu lateral / topo | — |
 
 Uma conta desactivada pela administração perde logo a sessão e não volta a entrar.
@@ -96,9 +99,10 @@ Na privada, ao entrar pelo link a chave é retirada da barra de endereço: se o 
 
 ### 2.5 Resumo do evento (`/eventos/:id`)
 
-- **Link e QR Code**: ver o QR, copiar o link, enviar o link (partilha nativa do telemóvel) e descarregar o **cartão para imprimir** em **PDF (A4)** ou **imagem PNG**. O cartão leva o tipo e a data do evento, o nome, o QR Code e a instrução "Aponte a câmara do telemóvel para o código". É desenhado no navegador.
+- **Link e QR Code**: ver o QR e o link, **enviar o link** (painel com WhatsApp, Instagram, Facebook e Copiar link — ver 3.5; nas galerias privadas avisa que o link leva a chave) e descarregar o **cartão para imprimir** em **PDF (A4)** ou **imagem PNG**. O cartão leva o tipo e a data do evento, o nome, o QR Code e a instrução "Aponte a câmara do telemóvel para o código". É desenhado no navegador.
+- **Cartões para as mesas (A4)**: o organizador indica quantos cartões quer (1 a 180, com atalhos 9, 18, 27 e 45) e descarrega um único PDF com **9 cartões por folha A4, em 3 filas de 3**, com linhas de corte tracejadas. Antes de descarregar vê quantas folhas vai imprimir (ex.: 20 cartões = 3 folhas, a última com 2). Cada cartão mede cerca de 6,3 × 9 cm, com um QR de uns 4 cm. Tudo é gerado no navegador.
 - **Participação**: número de fotografias e vídeos publicados, de participantes (quem enviou pelo menos um conteúdo), conteúdos por aprovar, envios por dia (últimos 14 dias com envios) e quem mais partilhou (top 5).
-- **Plano**: nome, preço, o que inclui e espaço usado (barra com percentagem).
+- **Plano**: o que inclui, espaço usado (barra com percentagem) e **Mudar de plano** (ver 2.10).
 - **Descarregar tudo (ZIP)**: ver 2.9.
 
 Os números actualizam-se sozinhos quando chegam envios (tempo real, via Reverb).
@@ -150,6 +154,18 @@ Nos planos **Premium** e **Exclusivo**. "Preparar o ZIP" põe o pedido na fila; 
 
 Nos outros planos, cada conteúdo descarrega-se individualmente.
 
+### 2.10 Mudar de plano
+
+No cartão do plano, no resumo do evento:
+
+1. **Mudar de plano** mostra só os planos acima do actual, com o **valor a pagar: a diferença** entre os preços (ex.: de Básico, 5 000 Kz, para Premium, 12 000 Kz, paga 7 000 Kz; do Gratuito paga o preço inteiro).
+2. Ao escolher, aparecem as instruções: **enviar o valor por Multicaixa Express** para o número da Galeria (`PAYMENT_EXPRESS_NUMBER`, com o titular), com um botão para copiar o número.
+3. **Anexar o comprovativo** — obrigatório: captura de ecrã ou PDF do Multicaixa Express (JPG, PNG, WebP ou PDF, até 10 MB). As fotografias do iPhone (HEIC) são convertidas para JPEG no telemóvel.
+4. **Enviar pedido**: o cartão passa a mostrar "Pedido do plano X enviado", com o valor, a data, **Ver comprovativo** e **Cancelar pedido**. A administração recebe um e-mail.
+5. A administração confirma o pagamento (secção 4): o plano muda **na hora** e o cartão mostra "Plano X activado". Se recusar, o cartão mostra o motivo e pode pedir de novo.
+
+Regras: um pedido pendente de cada vez por evento; o plano só muda depois de confirmado; uma aprovação nunca baixa o plano (se entretanto o evento já subiu mais, fica). O organizador com e-mail recebe o resultado por e-mail; sem e-mail, vê-o no evento. Sem número de Multicaixa Express configurado, a aplicação não aceita pedidos e mostra o WhatsApp de apoio.
+
 ---
 
 ## 3. Convidado
@@ -173,9 +189,12 @@ O convidado lê o QR Code (ou abre o link). Não precisa de conta nem de instala
 
 - Cabeçalho com a capa, o nome, a data, o tipo, a mensagem do organizador e o número de fotografias e vídeos.
 - **Grelha estilo Pinterest** (colunas), com a proporção real de cada fotografia (a grelha não salta ao carregar) e carregamento contínuo ao descer a página.
-- Filtros **Tudo / Fotografias / Vídeos** e ordenação **Recentes / Antigas**.
+- Filtros **Tudo / Fotos / Vídeos** e ordenação **Recentes / Antigas** (no telemóvel, a ordem é um botão por cima da grelha).
+- **Partilhar galeria** (galerias públicas): o link da galeria no painel de partilha (ver 3.5). Nas privadas não aparece: o link sem a chave não deixaria ninguém entrar.
+- **Seleccionar**: toca-se nas fotografias e vídeos para os marcar (até 30 de cada vez) e, na barra de baixo, **Descarregar** ou **Partilhar** todos de uma vez (ver 3.5).
 - Os vídeos mostram a capa e a duração.
 - A grelha actualiza-se sozinha a cada 30 segundos (chegam fotografias novas durante a festa).
+- O organizador abre a galeria na mesma aba ("Ver galeria", no cabeçalho do evento) e vê-a como os convidados; o botão **"Voltar à gestão"**, no topo, leva-o de volta ao resumo desse evento.
 
 ### 3.3 Visualizador em ecrã inteiro
 
@@ -184,12 +203,12 @@ O convidado lê o QR Code (ou abre o link). Não precisa de conta nem de instala
 - Navegação com setas, teclado (← →, Esc) ou a deslizar o dedo.
 - Legenda, quem partilhou e há quanto tempo.
 - **Descarregar**: fotografias em alta resolução (até 2048 px) **sem metadados** (sem localização GPS); vídeos sem metadados.
-- **Partilhar**: partilha nativa do telemóvel com o link da galeria (sem a chave), ou copia o link.
+- **Partilhar**: a própria fotografia ou vídeo, no painel de partilha (ver 3.5).
 - **Apagar**: só no que o próprio convidado enviou.
 
-### 3.4 Partilhar fotografias e vídeos
+### 3.4 Adicionar fotografias e vídeos
 
-Botão **"Partilhar fotografias"** (no topo e, no telemóvel, um botão flutuante):
+Botão **"Adicionar fotos e vídeos"** (no topo e, no telemóvel, o botão flutuante **"Adicionar"**):
 
 1. **Nome ou pseudónimo** — obrigatório para convidados (recomendação do produto: saber quem partilhou, sem verificar). Fica lembrado no telemóvel e na galeria.
 2. **Legenda** — opcional (até 280 caracteres), aplica-se ao que for escolhido a seguir.
@@ -220,6 +239,20 @@ Limites e mensagens (todos verificados também no servidor):
 | Mais de 150 envios por hora (anti-spam) | "Enviou muitos ficheiros na última hora…" |
 | Ficheiro corrompido / que não se consegue ler | Fica marcado como falhado e é apagado |
 
+### 3.5 Partilhar nas redes e guardar vários de uma vez
+
+O painel **Partilhar** abre-se no link do evento (organizador, 2.5), na galeria pública, num item do visualizador e na selecção. Tem **WhatsApp, Instagram e Facebook**, **Copiar link** e **Outras apps** (a partilha do telemóvel).
+
+| O que se partilha | WhatsApp | Facebook | Instagram |
+|---|---|---|---|
+| Link (evento ou galeria) | Abre o WhatsApp com a mensagem e o link, para escolher a conversa | Abre a partilha do Facebook com o link | O Instagram não aceita links vindos de sites: o link é copiado e o Instagram abre nas mensagens, para o colar (numa mensagem ou story) |
+| Fotografias e vídeos, no telemóvel | Envia os **próprios ficheiros** | Idem | Idem |
+| Fotografias e vídeos, no computador | Envia o link da galeria | Envia o link da galeria | Explica que tem de descarregar e publicar na aplicação |
+
+Nenhuma rede aceita ficheiros por um endereço: no telemóvel, os ficheiros vão pela **partilha do sistema**. Ao abrir o painel, os ficheiros são preparados (com progresso, "A preparar 3 de 10…"); ao tocar na rede, abre a lista de aplicações do telemóvel e a pessoa escolhe a mesma rede. Limites: 30 itens (o máximo do WhatsApp) e 200 MB por vez (vídeos grandes, menos de cada vez).
+
+**Descarregar vários**: no Android e no computador, cada ficheiro é descarregado (o navegador pode pedir autorização para várias transferências). No **iPhone**, os descarregamentos iriam para a app Ficheiros, não para as Fotos: abre-se o painel **Guardar no telemóvel**, que usa a partilha do sistema — escolhendo "Guardar imagens", ficam nas Fotos.
+
 ---
 
 ## 4. Administração da plataforma
@@ -227,13 +260,17 @@ Limites e mensagens (todos verificados também no servidor):
 `/admin` (só contas `superadmin`):
 
 - **Visão geral**: organizadores, eventos, eventos activos, conteúdos e espaço total usado.
-- **Eventos**: todos os eventos, com pesquisa por nome do evento, endereço, nome ou e-mail do organizador; conteúdos e espaço de cada um; **mudar o plano** do evento. O nome abre a gestão do evento (a administração pode gerir qualquer evento).
-- **Contas**: pesquisa por nome ou e-mail, número de eventos, **desactivar/reactivar** contas (não a própria).
+- **Eventos**: todos os eventos, com pesquisa por nome do evento, endereço, nome, telemóvel ou e-mail do organizador; conteúdos e espaço de cada um; **mudar o plano** directamente (ofertas ou correcções). O nome abre a gestão do evento (a administração pode gerir qualquer evento).
+- **Pedidos** (com o número de pendentes; o e-mail de aviso abre `/admin?separador=pedidos`): os pedidos de mudança de plano **Por confirmar / Aprovados / Recusados**, com o evento, os planos (de → para), o **valor a confirmar**, o organizador (o telemóvel abre o WhatsApp), o **comprovativo** e:
+  - **Aprovar** — depois de confirmar no Multicaixa Express que o valor chegou; o plano do evento muda logo;
+  - **Recusar** — com o motivo (obrigatório), que o organizador vê no evento;
+  - **Avisar no WhatsApp** — nos pedidos já tratados, mensagem pronta para o organizador.
+- **Contas**: pesquisa por nome, telemóvel (com ou sem espaços) ou e-mail, número de eventos, **desactivar/reactivar** e **Repor senha** (não a própria). Repor senha cria uma **senha temporária** de 10 caracteres, mostrada uma única vez, com botões para copiar e **enviar por WhatsApp**; a pessoa entra e muda-a em Conta.
 - **Telescope** (`/telescope`): diagnóstico; em produção só regista excepções e jobs falhados.
 
 O superadmin cria-se na linha de comandos: `make prod-artisan cmd="app:create-superadmin o.teu@email.ao 'O Teu Nome'"`.
 
-**Pagamentos no MVP**: não há pagamento online. O organizador paga fora da plataforma (ex.: transferência ou Multicaixa Express) e a administração muda o plano do evento. A integração de pagamentos fica para depois.
+**Pagamentos no MVP**: por **Multicaixa Express**, confirmados à mão pela administração com o comprovativo (secção 2.10). A confirmação automática (pagamento por referência) fica para depois.
 
 ---
 
@@ -282,7 +319,8 @@ Previsto no documento do produto e deliberadamente fora desta versão:
 | Galeria pós-evento: apresentação automática, álbum, "mais populares" | |
 | Secções/categorias (cerimónia, recepção…) | |
 | Organização por inteligência artificial | |
-| Pagamentos online | Hoje a administração muda o plano à mão |
+| Pagamentos confirmados automaticamente | Hoje a administração confirma o comprovativo do Multicaixa Express |
+| Recuperar a senha por SMS | Hoje, contas sem e-mail pedem ajuda por WhatsApp |
 | Armazenamento S3 e envio directo com URLs pré-assinadas | O disco já é configurável (`MEDIA_DISK`); ver [arquitectura](arquitectura.md#armazenamento) |
 | Versões comprimidas dos vídeos | Hoje o vídeo é regravado sem recomprimir |
 | Planos para profissionais (fotógrafos, salões, decoração) | |

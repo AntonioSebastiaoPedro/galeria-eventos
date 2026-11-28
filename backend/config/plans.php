@@ -1,7 +1,8 @@
 <?php
 
 // Planos por evento (o organizador paga por evento, não por mês). Os preços são propostas para testar
-// o mercado angolano; o pagamento é tratado fora da plataforma no MVP e a administração muda o plano do evento.
+// o mercado angolano. Para subir de plano, o organizador paga a diferença por Multicaixa Express, envia o
+// comprovativo e a administração confirma (ver PlanRequestController).
 // storage_mb: espaço total dos ficheiros originais; max_photos: null = sem limite.
 return [
     'default' => 'free',
@@ -43,4 +44,17 @@ return [
 
     // Quantos eventos no plano gratuito cada organizador pode ter ao mesmo tempo.
     'free_events_per_user' => (int) env('FREE_EVENTS_PER_USER', 1),
+
+    // Pagamento da mudança de plano: só Multicaixa Express (transferência para um número de telemóvel).
+    // Sem número configurado, a aplicação não aceita pedidos e pede para contactar o apoio.
+    'payment' => [
+        'express_number' => env('PAYMENT_EXPRESS_NUMBER'),
+        'express_holder' => env('PAYMENT_EXPRESS_HOLDER'),
+    ],
+
+    // Comprovativo do pagamento: imagem ou PDF.
+    'proof_max_mb' => (int) env('PAYMENT_PROOF_MAX_MB', 10),
+
+    // Contacto de apoio (WhatsApp): recuperar a senha das contas sem e-mail e dúvidas sobre pagamentos.
+    'support_phone' => env('SUPPORT_PHONE'),
 ];

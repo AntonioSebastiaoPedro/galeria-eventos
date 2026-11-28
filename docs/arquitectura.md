@@ -53,13 +53,13 @@ docs/                  esta documentação
 
 ```
 app/Models/                  User, Event, EventGuest, EventMedia, EventExport
-app/Modules/Eventos/         Plans, GalleryAccess (quem vê o quê), EventPresenter, EventQrCode
+app/Modules/Eventos/         Plans, PlanRequests (mudança de plano), GalleryAccess (quem vê o quê), EventPresenter, EventQrCode
 app/Modules/Conteudos/       MediaRules, MediaUrls (URLs assinadas), MediaPresenter,
                              ImageProcessor (GD), VideoProcessor (FFmpeg),
                              Actions/StoreMedia, Actions/DeleteMedia,
                              Jobs/ProcessMedia, Events/MediaChanged (Reverb)
 app/Modules/Exportacoes/     Jobs/BuildEventZip
-app/Modules/Notificacoes/    Notifications/ResetPassword
+app/Modules/Notificacoes/    Notifications/ResetPassword, PlanRequestSubmitted (à administração), PlanRequestReviewed (ao organizador)
 app/Http/Controllers/        AuthController, EventController, EventMediaController, EventGuestController,
                              EventExportController, MediaFileController, Gallery/GalleryController,
                              Admin/AdminController
@@ -78,7 +78,9 @@ api.ts            cliente da API (cookies + CSRF) e upload() com progresso (XHR)
 auth.tsx          sessão do organizador
 uploader.ts       fila de envios (2 em paralelo, progresso, repetir, cancelar)
 image.ts          conversão HEIC→JPEG e redução de fotografias no telemóvel
-qrCard.ts         cartão do QR Code em PNG/PDF (desenhado no navegador)
+qrCard.ts         cartão do QR Code em PNG/PDF e folhas A4 com 9 cartões (desenhados no navegador)
+share.tsx         painel Partilhar (WhatsApp, Instagram, Facebook) e Guardar no telemóvel (iPhone)
+shareFiles.ts     descarregar os ficheiros para a partilha do sistema; descarregar vários de uma vez
 echo.ts           Reverb (carregado só na área do organizador)
 components.tsx    Layout, botões, campos, modais…
 pagination.tsx    listas paginadas (páginas no computador, scroll infinito no telemóvel)
@@ -103,8 +105,9 @@ Rotas da interface:
 users ─────────< events ─────────< event_media >───────── event_guests
   id               id                 id                    id
   name             user_id            event_id              event_id
-  email            title              event_guest_id ───────┘
-  password         slug (único)       user_id (organizador)  name
+  email (opcional) title              event_guest_id ───────┘
+  phone (opcional) slug (único)       user_id (organizador)  name
+  password
   role             description        guest_name             access_version
   disabled_at      event_type         media_type             blocked_at
                    event_date         status                 ip_address
@@ -120,7 +123,8 @@ users ─────────< events ─────────< event_med
                    plan               processed_at
 ```
 
-- `users`: organizadores (`role = organizer`) e administração (`superadmin`). Os convidados **não** têm conta.
+- `users`: organizadores (`role = organizer`) e administração (`superadmin`). Os convidados **não** têm conta. Cada conta tem **telemóvel, e-mail ou os dois** (ambos únicos): `phone` guarda-se no formato internacional (`+244923456789`, ver `User::normalizePhone`). As notificações por e-mail só vão para quem tem e-mail (`routeNotificationForMail`).
+- `plan_requests`: pedidos de mudança de plano de um evento — `from_plan`, `to_plan`, `amount_kz` (a diferença), `status` (`pending`, `approved`, `rejected`, `cancelled`), comprovativo (`proof_path`, `proof_name`, `proof_mime`, `proof_size`), `admin_note` (motivo da recusa), `reviewed_by`, `reviewed_at`. A lógica está em `App\Modules\Eventos\PlanRequests`: um pendente de cada vez (com o evento bloqueado, `FOR UPDATE`), a aprovação muda o plano na mesma transacção e nunca o baixa.
 - `events`: a galeria e as suas definições. `access_key` vai no link/QR das privadas; `access_version` aumenta quando se cria um novo link.
 - `event_guests`: cada navegador que entrou numa galeria (corresponde à tabela `event_accesses` do documento do produto). Guarda o nome, o bloqueio e a versão da chave com que entrou.
 - `event_media`: cada fotografia ou vídeo, com o estado (`processing` → `approved`/`pending`, ou `failed`) e os caminhos do original e das versões geradas. Os ficheiros nunca vão para a base de dados.
@@ -208,9 +212,19 @@ Os convidados não usam WebSocket: a grelha consulta a API a cada 30 s (4 s enqu
 | `limpar-envios-falhados`: apaga registos `failed` com mais de 1 dia | diária |
 | `limpar-telescope`: `telescope:prune --hours=168` | diária |
 
+## Partilha nas redes
+
+O navegador não consegue entregar ficheiros a uma rede social por um endereço. `share.tsx`:
+
+- **links**: WhatsApp com `https://wa.me/?text=`, Facebook com `https://www.facebook.com/sharer/sharer.php?u=`; o Instagram não tem endereço de partilha, por isso copia-se o link e abre-se `instagram.com/direct/inbox/`;
+- **ficheiros** (telemóvel): `navigator.share({ files })` (Web Share API nível 2). Os ficheiros são descarregados **quando o painel abre** (`fetchFiles`, com as URLs assinadas `download`): o navegador só abre a partilha logo a seguir a um toque, e esperar pelo download depois do toque fazia-a falhar. Limites de 30 ficheiros e 200 MB;
+- **computador sem partilha de ficheiros**: WhatsApp e Facebook recebem o link da galeria.
+
+A pré-visualização do link no Facebook e no WhatsApp mostra o título e a imagem gerais da aplicação: a SPA não gera etiquetas Open Graph por galeria.
+
 ## Armazenamento
 
-O MVP usa o disco local do Laravel num volume Docker (como o `unia-presence`), partilhado entre `app`, `queue` e `scheduler`, e incluído nos backups (`scripts/backup.sh`).
+O MVP usa o disco local do Laravel num volume Docker (como o `unia-presence`), partilhado entre `app`, `queue` e `scheduler`, e incluído nos backups (`scripts/backup.sh`). Os comprovativos de pagamento ficam em `events/{id}/plan-requests/` (apagados com o evento) e só saem por `GET /api/plan-requests/{id}/proof`, autenticado, com `Content-Security-Policy: sandbox`.
 
 O disco é configurável (`MEDIA_DISK`, `config/media.php`) e todo o acesso passa por `Storage::disk(MediaRules::disk())`. Para passar a um Object Storage compatível com S3:
 

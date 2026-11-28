@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, SESSION_EXPIRED } from './api'
 
 export type Role = 'organizer' | 'superadmin'
-export interface User { id: number; name: string; email: string; role: Role }
+export interface User { id: number; name: string; email: string | null; phone: string | null; role: Role }
 
 interface AuthState {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (data: { name: string; email: string; password: string; password_confirmation: string }) => Promise<void>
+  // login: telemóvel ou e-mail, no mesmo campo.
+  login: (login: string, password: string) => Promise<void>
+  register: (data: { name: string; email?: string; phone?: string; password: string; password_confirmation: string }) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -35,9 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED, onExpired)
   }, [qc])
 
-  const login = async (email: string, password: string) => {
+  const login = async (login: string, password: string) => {
     await fetch('/sanctum/csrf-cookie', { credentials: 'include' })
-    qc.setQueryData(['me'], await api<User>('/login', 'POST', { email, password, remember: true }))
+    qc.setQueryData(['me'], await api<User>('/login', 'POST', { login, password, remember: true }))
   }
   const register: AuthState['register'] = async (body) => {
     await fetch('/sanctum/csrf-cookie', { credentials: 'include' })

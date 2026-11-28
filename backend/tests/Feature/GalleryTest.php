@@ -76,6 +76,14 @@ class GalleryTest extends TestCase
         $this->actingAs($event->user)->getJson("/api/g/{$event->slug}")->assertJson(['access' => 'granted', 'is_manager' => true]);
     }
 
+    public function test_only_the_organizer_gets_the_event_id_to_return_to_management(): void
+    {
+        $event = Event::factory()->create();
+
+        $this->getJson("/api/g/{$event->slug}")->assertJson(['is_manager' => false, 'manage_id' => null]);
+        $this->actingAs($event->user)->getJson("/api/g/{$event->slug}")->assertJson(['is_manager' => true, 'manage_id' => $event->id]);
+    }
+
     public function test_guest_uploads_a_photo_that_is_processed_and_published(): void
     {
         $event = Event::factory()->create();

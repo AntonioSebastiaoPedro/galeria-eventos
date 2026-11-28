@@ -179,6 +179,12 @@ class EventController extends Controller
         return response()->json(Plans::all());
     }
 
+    // Dados públicos: Multicaixa Express para mudar de plano e contacto de apoio (WhatsApp).
+    public function settings(): JsonResponse
+    {
+        return response()->json(Plans::settings());
+    }
+
     /**
      * @return array<string, mixed>
      */

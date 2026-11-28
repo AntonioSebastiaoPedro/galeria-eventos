@@ -43,7 +43,7 @@ Para comparação, o `unia-presence` usa 28480, 28443, 25439, 26389, 28485, 2517
 
 Depois do `make setup`, abrir http://localhost:25373. Contas de demonstração (senha `password`):
 
-- `organizador@galeria.local` — organizador, com o evento "Aniversário da Dicla" (público, plano Premium, 12 fotografias);
+- `organizador@galeria.local` ou o telemóvel `923 000 001` — organizador, com o evento "Aniversário da Dicla" (público, plano Premium, 12 fotografias);
 - `admin@galeria.local` — administração.
 
 Os e-mails (recuperação de senha) chegam ao Mailpit: http://localhost:29125.
@@ -75,12 +75,23 @@ O `DatabaseSeeder` **não** deve correr em produção: cria contas de demonstra�
 ### Primeiro deploy
 
 ```bash
-cp .env.production.example .env        # preencher os campos em branco (APP_KEY, DB_PASSWORD, REVERB_APP_SECRET, RESEND_API_KEY…)
+cp .env.production.example .env        # preencher os campos em branco (APP_KEY, DB_PASSWORD, REVERB_APP_SECRET, RESEND_API_KEY, PAYMENT_EXPRESS_NUMBER, SUPPORT_PHONE…)
 make deploy
 make prod-artisan cmd="app:create-superadmin o.teu@email.ao 'O Teu Nome'"
 ```
 
 Depois, acrescentar o bloco de `docker/caddy/Caddyfile` ao Caddy da VPS (domínio e porta `HTTP_PORT`) e recarregá-lo (`sudo systemctl reload caddy`). O bloco já aceita pedidos até 320 MB (vídeos).
+
+Pagamentos e apoio, no `.env`:
+
+| Variável | Para quê |
+|---|---|
+| `PAYMENT_EXPRESS_NUMBER` | Número do Multicaixa Express para onde os organizadores enviam a diferença ao mudar de plano. Vazio: a aplicação não aceita pedidos |
+| `PAYMENT_EXPRESS_HOLDER` | Titular mostrado com o número |
+| `PAYMENT_PROOF_MAX_MB` | Tamanho máximo do comprovativo (10 MB por omissão) |
+| `SUPPORT_PHONE` | WhatsApp de apoio: recuperar a senha de contas sem e-mail e dúvidas de pagamento |
+
+Depois de mudar o `.env` em produção: `make prod-artisan cmd="config:cache"`.
 
 `COMPOSE_PROJECT_NAME=galeria` separa os contentores e volumes dos de outros projectos na mesma VPS.
 

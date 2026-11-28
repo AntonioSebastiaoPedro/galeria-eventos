@@ -27,7 +27,7 @@ export default function Landing() {
   return (
     <div className="min-h-dvh bg-canvas">
       <header className="mx-auto flex h-20 max-w-6xl items-center justify-between px-5 md:px-8">
-        <Brand />
+        <Link to="/" aria-label="Galeria, página inicial"><Brand /></Link>
         <nav className="flex items-center gap-2">
           {user ? (
             <Link to="/eventos" className={buttonClass('primary')}>Os meus eventos</Link>
@@ -113,7 +113,7 @@ export default function Landing() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-sm text-ink-3 md:px-8">
-          <Brand />
+          <Link to="/" aria-label="Galeria, página inicial"><Brand /></Link>
           <span>Os conteúdos pertencem a quem os partilhou e ao organizador do evento.</span>
         </div>
       </footer>

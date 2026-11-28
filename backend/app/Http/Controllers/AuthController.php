@@ -16,14 +16,15 @@ use Illuminate\Validation\ValidationException;
 // Contas dos organizadores. Os convidados nunca criam conta.
 class AuthController extends Controller
 {
+    // A conta tem telemóvel, e-mail ou os dois: muitos organizadores não usam e-mail.
     public function register(Request $request): JsonResponse
     {
-        $request->merge(['email' => User::normalizeEmail($request->input('email'))]);
+        $this->normalizeContacts($request);
         $data = $request->validate([
             'name' => 'required|string|max:120',
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            ...$this->contactRules(),
             'password' => 'required|string|min:8|confirmed',
-        ], ['email.unique' => 'Já existe uma conta com este e-mail. Entre ou recupere a senha.']);
+        ], $this->contactMessages());
 
         $user = User::create($data + ['role' => 'organizer']);
         Auth::guard('web')->login($user);
@@ -34,24 +35,27 @@ class AuthController extends Controller
         return response()->json($this->payload($user), 201);
     }
 
-    // A mensagem de erro é a mesma para e-mail inexistente e senha errada: não confirma a existência de contas.
+    // Entra-se com o telemóvel ou com o e-mail, no mesmo campo. A mensagem de erro é a mesma para conta
+    // inexistente e senha errada: não confirma a existência de contas.
     public function login(Request $request): JsonResponse
     {
-        $data = $request->validate(['email' => 'required|string|max:255', 'password' => 'required|string']);
-        $key = 'login:'.Str::lower($data['email']).'|'.$request->ip();
+        $data = $request->validate(['login' => 'required|string|max:255', 'password' => 'required|string'], [
+            'login.required' => 'Escreva o telemóvel ou o e-mail.',
+        ]);
+        $user = $this->findByLogin($data['login']);
+        $key = 'login:'.Str::lower($user?->id ?? trim($data['login'])).'|'.$request->ip();
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $wait = RateLimiter::availableIn($key);
-            throw ValidationException::withMessages(['email' => "Muitas tentativas. Tente de novo dentro de {$wait} segundos."]);
+            throw ValidationException::withMessages(['login' => "Muitas tentativas. Tente de novo dentro de {$wait} segundos."]);
         }
 
-        $user = User::where('email', User::normalizeEmail($data['email']))->first();
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             RateLimiter::hit($key, 60);
-            throw ValidationException::withMessages(['email' => 'E-mail ou senha incorretos.']);
+            throw ValidationException::withMessages(['login' => 'Telemóvel, e-mail ou senha incorretos.']);
         }
         if ($user->isDisabled()) {
-            throw ValidationException::withMessages(['email' => 'A sua conta foi desativada pela administração.']);
+            throw ValidationException::withMessages(['login' => 'A sua conta foi desativada pela administração.']);
         }
 
         RateLimiter::clear($key);
@@ -80,11 +84,11 @@ class AuthController extends Controller
     public function updateProfile(Request $request): JsonResponse
     {
         $user = $request->user();
-        $request->merge(['email' => User::normalizeEmail($request->input('email'))]);
+        $this->normalizeContacts($request);
         $data = $request->validate([
             'name' => 'required|string|max:120',
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-        ]);
+            ...$this->contactRules($user),
+        ], $this->contactMessages());
         $user->update($data);
 
         return response()->json($this->payload($user));
@@ -142,11 +146,53 @@ class AuthController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    private function findByLogin(string $login): ?User
+    {
+        $login = trim($login);
+
+        return str_contains($login, '@')
+            ? User::where('email', User::normalizeEmail($login))->first()
+            : User::where('phone', User::normalizePhone($login))->first();
+    }
+
+    private function normalizeContacts(Request $request): void
+    {
+        $request->merge([
+            'email' => User::normalizeEmail($request->input('email')),
+            'phone' => User::normalizePhone($request->input('phone')),
+        ]);
+    }
+
     /**
-     * @return array{id: int, name: string, email: string, role: string}
+     * @return array<string, mixed>
+     */
+    private function contactRules(?User $ignore = null): array
+    {
+        return [
+            'phone' => ['nullable', 'required_without:email', 'string', User::PHONE_RULE, Rule::unique('users', 'phone')->ignore($ignore?->id)],
+            'email' => ['nullable', 'required_without:phone', 'email', 'max:255', Rule::unique('users', 'email')->ignore($ignore?->id)],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function contactMessages(): array
+    {
+        return [
+            'phone.required_without' => 'Indique o número de telemóvel ou o e-mail.',
+            'email.required_without' => 'Indique o número de telemóvel ou o e-mail.',
+            'phone.regex' => 'Número de telemóvel inválido. Ex.: 923 456 789.',
+            'phone.unique' => 'Já existe uma conta com este número. Entre ou peça ajuda para recuperar a senha.',
+            'email.unique' => 'Já existe uma conta com este e-mail. Entre ou recupere a senha.',
+        ];
+    }
+
+    /**
+     * @return array{id: int, name: string, email: string|null, phone: string|null, role: string}
      */
     private function payload(User $user): array
     {
-        return $user->only('id', 'name', 'email', 'role');
+        return $user->only('id', 'name', 'email', 'phone', 'role');
     }
 }

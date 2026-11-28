@@ -67,7 +67,7 @@ class EventPresenter
             'plan' => ['key' => $event->plan] + $event->planRules(),
             'cover_url' => self::coverUrl($event),
             'guest_url' => $event->guestUrl(),
-            'owner' => $event->relationLoaded('user') ? $event->user?->only('id', 'name', 'email') : null,
+            'owner' => $event->relationLoaded('user') ? $event->user?->only('id', 'name', 'email', 'phone') : null,
             'counts' => self::counts($event),
             'created_at' => $event->created_at,
         ];
