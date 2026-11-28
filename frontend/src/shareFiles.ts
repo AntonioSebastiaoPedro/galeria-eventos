@@ -40,7 +40,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 // Android e computador: um descarregamento por ficheiro (o navegador pode pedir autorização para vários).
 export async function downloadEach(items: GalleryMedia[]) {
   const urls = items.map((m) => m.download_url).filter((u): u is string => !!u)
-  toast(`A descarregar ${plural(urls.length, 'ficheiro', 'ficheiros')}… Se o navegador perguntar, permita várias transferências.`)
+  toast(`A descarregar ${plural(urls.length, 'ficheiro', 'ficheiros')}… Se o navegador perguntar, permita várias transferências.`, 'info')
   for (const url of urls) {
     const a = document.createElement('a')
     a.href = url

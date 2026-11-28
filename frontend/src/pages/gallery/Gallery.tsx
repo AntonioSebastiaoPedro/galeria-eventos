@@ -101,7 +101,7 @@ function OpenGallery({ event: e, slug }: { event: GalleryEvent; slug: string }) 
   const toggle = (m: GalleryMedia) => setSelected((cur) => {
     const next = new Map(cur)
     if (next.has(m.id)) next.delete(m.id)
-    else if (next.size >= MAX_BATCH) { toast(`Pode seleccionar até ${MAX_BATCH} de cada vez.`); return cur }
+    else if (next.size >= MAX_BATCH) { toast(`Pode seleccionar até ${MAX_BATCH} de cada vez.`, 'info'); return cur }
     else if (m.download_url) next.set(m.id, m)
     return next
   })

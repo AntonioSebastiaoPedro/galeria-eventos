@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { CircleAlert, CircleCheck, Info, X } from 'lucide-react'
 import { ApiError } from './api'
 
 // Avisos que flutuam por cima da página. Vive fora do React para o QueryClient (que também está fora) os poder chamar.
-interface Toast { id: number; message: string }
+// success: algo ficou feito · error: algo falhou · info: aviso ou instrução (nem sucesso nem falha).
+export type ToastKind = 'success' | 'error' | 'info'
+interface Toast { id: number; message: string; kind: ToastKind }
 
 let toasts: Toast[] = []
 let nextId = 1
@@ -15,11 +17,14 @@ export function dismissToast(id: number) {
   emit()
 }
 
-export function toast(message: string) {
+// Fica o tempo de o ler: 4 s mais ~60 ms por letra (até 10 s); os erros nunca menos de 7 s.
+const duration = (message: string, kind: ToastKind) => Math.min(10000, Math.max(kind === 'error' ? 7000 : 4000, 2500 + message.length * 60))
+
+export function toast(message: string, kind: ToastKind = 'success') {
   const id = nextId++
-  toasts = [...toasts.filter((t) => t.message !== message), { id, message }].slice(-3)
+  toasts = [...toasts.filter((t) => t.message !== message), { id, message, kind }].slice(-3)
   emit()
-  setTimeout(() => dismissToast(id), 7000)
+  setTimeout(() => dismissToast(id), duration(message, kind))
 }
 
 // Leva a página ao primeiro campo com erro, para a mensagem ser vista sem procurar.
@@ -42,7 +47,7 @@ export function errorMessage(e: unknown): string {
 }
 
 export function notifyError(e: unknown) {
-  toast(errorMessage(e))
+  toast(errorMessage(e), 'error')
   revealFirstError()
 }
 
@@ -55,17 +60,30 @@ export function Toaster() {
   }, [])
 
   return (
-    <div className="pointer-events-none fixed inset-x-4 top-4 z-[1000] mx-auto flex max-w-md flex-col gap-2" aria-live="assertive">
-      {toasts.map((t) => (
-        <div key={t.id} role="alert" className="pointer-events-auto flex items-start gap-3 rounded-2xl bg-ink px-4 py-3 text-white shadow-lg ring-2 ring-coral">
-          <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-gold" aria-hidden="true" />
-          <p className="flex-1 pt-0.5 text-sm font-medium">{t.message}</p>
-          <button type="button" onClick={() => dismissToast(t.id)} aria-label="Fechar aviso"
-            className="-my-1 -mr-2 flex size-11 shrink-0 items-center justify-center rounded-xl transition-transform hover:-translate-y-0.5 hover:bg-white/10">
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-      ))}
+    <div className="pointer-events-none fixed inset-x-4 top-4 z-[1000] mx-auto flex max-w-md flex-col gap-2" aria-live="polite">
+      {toasts.map((t) => {
+        const { Icon, badge, ring } = LOOK[t.kind]
+        return (
+          // Três colunas, com as das pontas da mesma largura, para o texto ficar mesmo ao centro.
+          <div key={t.id} role={t.kind === 'error' ? 'alert' : 'status'}
+            className={`pointer-events-auto grid animate-drop grid-cols-[2.75rem_1fr_2.75rem] items-center gap-1 rounded-2xl bg-ink py-2 pl-2 pr-1 text-white shadow-xl shadow-black/30 ring-1 ${ring}`}>
+            <span className={`mx-auto flex size-8 items-center justify-center rounded-full ${badge}`} aria-hidden="true">
+              <Icon size={18} strokeWidth={2.25} />
+            </span>
+            <p className="py-1.5 text-center text-[15px] font-medium leading-snug text-balance sm:text-base">{t.message}</p>
+            <button type="button" onClick={() => dismissToast(t.id)} aria-label="Fechar aviso"
+              className="flex size-11 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
+
+const LOOK = {
+  success: { Icon: CircleCheck, badge: 'bg-leaf text-white', ring: 'ring-white/10' },
+  info: { Icon: Info, badge: 'bg-gold text-gold-ink', ring: 'ring-white/10' },
+  error: { Icon: CircleAlert, badge: 'bg-coral text-white', ring: 'ring-2 ring-coral' },
+} satisfies Record<ToastKind, { Icon: typeof X; badge: string; ring: string }>

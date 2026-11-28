@@ -53,7 +53,7 @@ function usePreparedFiles(items: GalleryMedia[] | null): Prepared {
 
 async function shareFiles(files: File[], title: string) {
   try { await navigator.share({ files, title }) } catch (e) {
-    if ((e as Error).name !== 'AbortError') toast('Não foi possível abrir a partilha. Tente com menos ficheiros.')
+    if ((e as Error).name !== 'AbortError') toast('Não foi possível abrir a partilha. Tente com menos ficheiros.', 'error')
   }
 }
 
@@ -115,17 +115,17 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject | null;
     if (network === 'facebook') openExternal(facebookUrl(subject.url))
     if (network === 'instagram') {
       if (subject.kind === 'media') {
-        toast('No computador, o Instagram não deixa publicar a partir do navegador. Descarregue e publique na aplicação.')
+        toast('No computador, o Instagram não deixa publicar a partir do navegador. Descarregue e publique na aplicação.', 'info')
         return
       }
       void navigator.clipboard?.writeText(subject.url)
       openExternal('https://www.instagram.com/direct/inbox/')
-      toast('Link copiado. No Instagram, cole-o numa mensagem ou na sua story.')
+      toast('Link copiado. No Instagram, cole-o numa mensagem ou na sua story.', 'info')
     }
   }
 
   const copy = async () => {
-    try { await navigator.clipboard.writeText(subject.url); toast('Link copiado.') } catch { toast(subject.url) }
+    try { await navigator.clipboard.writeText(subject.url); toast('Link copiado.') } catch { toast(subject.url, 'info') }
   }
   const more = async () => {
     try {
