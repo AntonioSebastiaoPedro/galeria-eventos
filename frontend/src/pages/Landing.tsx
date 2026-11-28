@@ -56,7 +56,7 @@ export default function Landing() {
           <div className="mb-4 flex items-center justify-between text-cream">
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-gold">Galeria do evento</div>
-              <div className="font-display text-2xl font-semibold">Aniversário da Dicla</div>
+              <div className="font-display text-2xl font-semibold">Casamento de Domingos & Teresa</div>
             </div>
             <span className="rounded-full bg-white/10 px-3 py-1 text-sm">128 fotos</span>
           </div>

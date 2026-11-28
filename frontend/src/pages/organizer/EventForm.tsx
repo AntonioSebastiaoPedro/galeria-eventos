@@ -18,7 +18,7 @@ export default function EventForm({ initial, event, onSubmit, busy, error, submi
     <form onSubmit={(e: FormEvent) => { e.preventDefault(); onSubmit(v) }} className="grid gap-x-10 lg:grid-cols-2">
       <div>
         <h2 className="mb-4 text-lg font-bold">O evento</h2>
-        <Field label="Nome do evento" placeholder="Ex.: Aniversário da Dicla" value={v.title} onChange={(e) => set('title', e.target.value)} error={err('title')} maxLength={120} required />
+        <Field label="Nome do evento" placeholder="Ex.: Aniversário do Ansebast" value={v.title} onChange={(e) => set('title', e.target.value)} error={err('title')} maxLength={120} required />
         <div className="grid gap-x-4 sm:grid-cols-2">
           <Select label="Tipo de evento" value={v.event_type} onChange={(e) => set('event_type', e.target.value)} error={err('event_type')}>
             {Object.entries(EVENT_TYPES).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
