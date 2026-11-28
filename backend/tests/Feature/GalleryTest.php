@@ -131,6 +131,27 @@ class GalleryTest extends TestCase
         $this->assertSame(Storage::disk('local')->path($media->preview_path), $response->baseResponse->getFile()->getPathname());
     }
 
+    public function test_in_production_nginx_sends_the_authorized_file(): void
+    {
+        config(['media.x_accel' => true]);
+        $event = Event::factory()->create(['title' => 'Casamento']);
+        $this->upload($event)->assertCreated();
+        $media = EventMedia::sole();
+        $item = $this->getJson("/api/g/{$event->slug}/media")->json('data.0');
+
+        $this->get($item['thumb_url'])->assertOk()
+            ->assertHeader('X-Accel-Redirect', '/_protected/'.$media->thumbnail_path)
+            ->assertHeader('Content-Type', 'image/jpeg')
+            ->assertHeader('Cache-Control', 'immutable, max-age=43200, private');
+        $this->assertSame('', $this->get($item['thumb_url'])->getContent());
+
+        $this->get($item['download_url'])->assertOk()
+            ->assertHeader('X-Accel-Redirect', '/_protected/'.$media->preview_path)
+            ->assertDownload("casamento-{$media->id}.jpg");
+
+        $this->get("/api/media/{$media->id}/thumb")->assertForbidden()->assertHeaderMissing('X-Accel-Redirect');
+    }
+
     public function test_manual_moderation_hides_uploads_until_approved(): void
     {
         $event = Event::factory()->moderated()->create();

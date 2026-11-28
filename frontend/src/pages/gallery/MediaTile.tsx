@@ -4,10 +4,13 @@ import type { GalleryMedia } from '../../types'
 
 // Uma fotografia ou vídeo na grelha. A proporção vem do servidor, para a grelha não saltar ao carregar.
 // selected !== undefined: modo de selecção (tocar marca/desmarca em vez de abrir).
-export function MediaTile({ m, onOpen, dark = true, selected }: { m: GalleryMedia; onOpen: () => void; dark?: boolean; selected?: boolean }) {
+// showCaption=false: quem usa o mosaico mostra a legenda noutro sítio (painel do organizador).
+export function MediaTile({ m, onOpen, dark = true, selected, showCaption = true }: { m: GalleryMedia; onOpen: () => void; dark?: boolean; selected?: boolean; showCaption?: boolean }) {
+  const caption = showCaption ? m.caption : null
   const selecting = selected !== undefined
   const ratio = m.width && m.height ? `${m.width} / ${m.height}` : '4 / 3'
   const label = m.type === 'video' ? `Vídeo${m.author ? ` de ${m.author}` : ''}` : `Fotografia${m.author ? ` de ${m.author}` : ''}`
+    + (m.caption ? `: ${m.caption}` : '')
   return (
     <button type="button" onClick={onOpen} aria-label={label} aria-pressed={selecting ? selected : undefined}
       className={`group relative mb-2 block w-full break-inside-avoid overflow-hidden rounded-xl md:mb-3 ${dark ? 'bg-night-2' : 'bg-wash'} ${selected ? 'ring-4 ring-coral ring-inset' : ''}`} style={{ aspectRatio: ratio }}>
@@ -16,9 +19,15 @@ export function MediaTile({ m, onOpen, dark = true, selected }: { m: GalleryMedi
       ) : (
         <span className="flex size-full items-center justify-center text-cream/40">{m.status === 'processing' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play aria-hidden="true" />}</span>
       )}
-      {m.type === 'video' && (
-        <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
-          <Play size={12} fill="currentColor" aria-hidden="true" />{fmtDuration(m.duration) || 'Vídeo'}
+      {/* Legenda e duração do vídeo em baixo, sobre um degradé para se lerem em qualquer fotografia. */}
+      {(caption || m.type === 'video') && (
+        <span className={`absolute inset-x-0 bottom-0 flex flex-col items-start gap-1 p-2 text-left ${caption ? 'bg-gradient-to-t from-black/75 via-black/40 to-transparent pt-8' : ''}`}>
+          {m.type === 'video' && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
+              <Play size={12} fill="currentColor" aria-hidden="true" />{fmtDuration(m.duration) || 'Vídeo'}
+            </span>
+          )}
+          {caption && <span className="line-clamp-2 text-xs font-medium leading-snug text-white sm:text-sm">{caption}</span>}
         </span>
       )}
       {m.status !== 'approved' && (

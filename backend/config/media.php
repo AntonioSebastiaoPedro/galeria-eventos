@@ -21,6 +21,10 @@ return [
     // Validade das URLs assinadas dos ficheiros, em horas. Arredondada a blocos, para o navegador poder usar a cache.
     'url_ttl_hours' => 6,
 
+    // Em produção o nginx envia os ficheiros depois de o PHP os autorizar (X-Accel-Redirect, ver FileDelivery).
+    // Exige o volume de armazenamento montado no contentor nginx (compose.prod.yml).
+    'x_accel' => (bool) env('MEDIA_X_ACCEL', false),
+
     // Os ZIP ficam disponíveis durante estes dias e depois são apagados.
     'export_ttl_days' => 7,
 

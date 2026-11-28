@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\EventExport;
+use App\Modules\Conteudos\FileDelivery;
 use App\Modules\Conteudos\MediaRules;
 use App\Modules\Exportacoes\Jobs\BuildEventZip;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 // Descarregar todas as fotografias e vídeos do evento num ZIP (planos com essa funcionalidade).
 class EventExportController extends Controller
@@ -40,13 +41,13 @@ class EventExportController extends Controller
         return response()->json($this->present($export->fresh()), 201);
     }
 
-    public function download(Request $request, EventExport $export): BinaryFileResponse
+    public function download(Request $request, EventExport $export): Response
     {
         $this->own($request, $export->event);
         $disk = Storage::disk(MediaRules::disk());
         abort_unless($export->status === 'ready' && $export->path && $disk->exists($export->path), 404, 'O ZIP já não está disponível. Peça outro.');
 
-        return response()->download($disk->path($export->path), Str::slug($export->event->title).'.zip', ['X-Content-Type-Options' => 'nosniff']);
+        return FileDelivery::send($export->path, ['Content-Type' => 'application/zip', 'Cache-Control' => 'private, no-store'], Str::slug($export->event->title).'.zip');
     }
 
     /**

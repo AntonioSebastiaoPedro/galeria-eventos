@@ -70,7 +70,7 @@ export default function EventMediaPage() {
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {rows.map((m, i) => (
               <li key={m.id} className={`relative rounded-2xl border bg-paper p-2 ${selected.has(m.id) ? 'border-coral ring-2 ring-coral/40' : 'border-line'}`}>
-                <div className="aspect-square overflow-hidden rounded-xl [&>button]:mb-0 [&>button]:h-full"><MediaTile m={m} onOpen={() => setOpen(i)} dark={false} /></div>
+                <div className="aspect-square overflow-hidden rounded-xl [&>button]:mb-0 [&>button]:h-full"><MediaTile m={m} onOpen={() => setOpen(i)} dark={false} showCaption={false} /></div>
                 <label className="absolute left-3 top-3 flex size-9 cursor-pointer items-center justify-center rounded-lg bg-paper/90 shadow">
                   <input type="checkbox" className="size-5 accent-coral" checked={selected.has(m.id)} onChange={() => toggle(m.id)} aria-label={`Seleccionar ${m.original_name}`} />
                 </label>

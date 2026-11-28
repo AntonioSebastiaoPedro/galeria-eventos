@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\EventMedia;
+use App\Modules\Conteudos\FileDelivery;
 use App\Modules\Conteudos\MediaRules;
 use App\Modules\Conteudos\MediaUrls;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Entrega os ficheiros pelas URLs assinadas (MediaUrls). A assinatura é a autorização: só é gerada para quem
@@ -17,7 +17,7 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
  */
 class MediaFileController extends Controller
 {
-    public function show(Request $request, EventMedia $media, string $variant): BinaryFileResponse
+    public function show(Request $request, EventMedia $media, string $variant): Response
     {
         $manager = $request->query('m') === '1';
         abort_unless($manager || $media->event->isActive(), 404);
@@ -27,17 +27,13 @@ class MediaFileController extends Controller
         $disk = Storage::disk(MediaRules::disk());
         abort_unless($path && $disk->exists($path), 404);
 
-        $headers = ['Cache-Control' => 'private, max-age=21600', 'X-Content-Type-Options' => 'nosniff'];
-        $isJpeg = $path !== $media->original_path; // as versões geradas são sempre JPEG
-        $headers['Content-Type'] = $isJpeg ? 'image/jpeg' : $media->mime_type;
-
-        $response = response()->file($disk->path($path), $headers);
+        // As versões geradas são sempre JPEG; o original guarda o tipo com que foi enviado.
+        $headers = ['Cache-Control' => FileDelivery::CACHE_SIGNED, 'Content-Type' => $path !== $media->original_path ? 'image/jpeg' : $media->mime_type];
+        $download = null;
         if ($variant === 'download' || $variant === 'original') {
-            $ext = pathinfo($path, PATHINFO_EXTENSION);
-            $name = (Str::slug(Str::limit($media->event->title, 40, '')) ?: 'evento').'-'.$media->id.'.'.$ext;
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $name);
+            $download = (Str::slug(Str::limit($media->event->title, 40, '')) ?: 'evento').'-'.$media->id.'.'.pathinfo($path, PATHINFO_EXTENSION);
         }
 
-        return $response;
+        return FileDelivery::send($path, $headers, $download);
     }
 }

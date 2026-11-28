@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Modules\Conteudos\FileDelivery;
 use App\Modules\Conteudos\ImageProcessor;
 use App\Modules\Conteudos\MediaRules;
 use App\Modules\Eventos\EventPresenter;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 // Eventos do organizador: criar, configurar, partilhar (link e QR Code), estatísticas e capa.
@@ -163,15 +164,11 @@ class EventController extends Controller
     }
 
     // Capa da galeria, por URL assinada (aparece também aos convidados).
-    public function coverFile(Event $event): BinaryFileResponse
+    public function coverFile(Event $event): Response
     {
         abort_unless($event->cover_path && Storage::disk(MediaRules::disk())->exists($event->cover_path), 404);
 
-        return response()->file(Storage::disk(MediaRules::disk())->path($event->cover_path), [
-            'Content-Type' => 'image/jpeg',
-            'Cache-Control' => 'private, max-age=21600',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
+        return FileDelivery::send($event->cover_path, ['Content-Type' => 'image/jpeg', 'Cache-Control' => FileDelivery::CACHE_SIGNED]);
     }
 
     public function plans(): JsonResponse
