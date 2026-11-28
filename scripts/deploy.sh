@@ -3,7 +3,7 @@ set -euo pipefail
 DC="docker compose -f compose.yml -f compose.prod.yml"
 # No primeiro deploy ainda não há base de dados para guardar.
 if $DC ps --status running --services 2>/dev/null | grep -qx postgres; then ./scripts/backup.sh; fi
-$DC up -d --build
+$DC up -d --build --wait
 # A imagem passou a correr como www-data: os ficheiros antigos do volume podem ter sido criados como root.
 $DC exec -T -u root app chown -R www-data:www-data storage/app
 $DC exec -T app php artisan migrate --force

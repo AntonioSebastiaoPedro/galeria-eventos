@@ -1,7 +1,9 @@
 x-app: &app
   build: { context: ., dockerfile: docker/php/Dockerfile, target: app }
   env_file: .env
-  depends_on: [postgres, redis]
+  depends_on:
+    postgres: { condition: service_healthy } # no primeiro arranque o Postgres demora a inicializar o volume
+    redis: { condition: service_started }
 
 services:
   app:
@@ -29,7 +31,12 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      # Por TCP: durante a inicialização o servidor temporário só escuta no socket, por isso não conta como pronto.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   redis:
     image: redis:7-alpine
 
