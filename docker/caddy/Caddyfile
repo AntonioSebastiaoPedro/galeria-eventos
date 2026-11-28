@@ -1,12 +1,28 @@
-# Bloco a acrescentar ao /etc/caddy/Caddyfile da VPS (pode ser a mesma de outros projectos: cada um usa a sua porta).
+# Blocos a acrescentar ao /etc/caddy/Caddyfile da VPS (pode ser a mesma de outros projectos: cada um usa a sua porta).
 # O Caddy obtém o certificado sozinho. A porta é o HTTP_PORT do .env; o nginx do contentor
 # já encaminha /app (WebSocket do Reverb) e /api, por isso não é preciso subdomínio "ws".
 #
-#   sudo systemctl reload caddy
+#   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+
+# 1) Opções globais: têm de ficar no INÍCIO do Caddyfile (só pode haver um bloco destes; se já existir, junte-lhe o "servers").
+# O domínio passa pelo proxy da Cloudflare: sem isto, o IP que chega à aplicação é o da Cloudflare, e os limites
+# de tentativas (login, chave de acesso das galerias) passam a ser partilhados por muitos utilizadores.
+# O CF-Connecting-IP só é aceite quando o pedido vem mesmo da Cloudflare (lista em https://www.cloudflare.com/ips/).
+{
+	servers {
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+# 2) O site.
 galeria.shopall.ao {
 	encode gzip zstd
 	request_body {
 		max_size 320MB
 	}
-	reverse_proxy localhost:29680
+	reverse_proxy localhost:29680 {
+		# Só o IP real do visitante (o Laravel confia no nginx do contentor e lê este cabeçalho).
+		header_up X-Forwarded-For {client_ip}
+	}
 }
